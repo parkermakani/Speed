@@ -6,6 +6,7 @@ from typing import Optional, List
 import httpx
 import os
 from dotenv import load_dotenv
+from fastapi.staticfiles import StaticFiles
 
 # Load environment variables from .env file
 load_dotenv()
@@ -18,6 +19,12 @@ from auth import (
 )
 
 app = FastAPI(title="Speed Live Map API", version="1.0.0")
+
+# Serve static files (production)
+if os.getenv("ENV") == "production":
+    frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+    if os.path.isdir(frontend_dist):
+        app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
 
 # CORS middleware
 app.add_middleware(

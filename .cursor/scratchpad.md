@@ -109,9 +109,100 @@ A mobile-first React web app that shows a Mapbox map centered on a live location
     - Success: Model replaces icon, shows correct orientation while tilting map.
 
 13. Interface cleanup
+
     - Remove “Last updated”, “Approximate location within 1 mile” notes from UI.
     - Remove lat/lon footer coordinates.
     - Success: Clean UI with no legacy disclaimers; tests updated.
+
+14. Remove pulsing + city autocomplete (frontend)
+
+    - Deprecate pulsing effect for city polygon; remove animated opacity logic.
+    - Simplify city input by removing autocomplete and using admin-provided polygon only.
+    - Success: Polygon remains static; admin workflow simplified.
+
+15. Replit deployment & environment configuration
+
+    - 15a. Create `.env` for local development and `.env.example` (checked in) with placeholder values (`MAPBOX_TOKEN`, `ADMIN_PASSWORD`, `JWT_SECRET`, `GOOGLE_PLACES_API_KEY`, etc.).
+    - 15b. Add `.env` to `.gitignore`; commit `.env.example`.
+    - 15c. Install `python-dotenv` and update FastAPI `main.py` to load environment variables automatically when present.
+    - 15d. Prefix frontend variables with `VITE_` and reference via `import.meta.env` (e.g., `VITE_MAPBOX_TOKEN`).
+    - 15e. Add `.replit` file specifying the run command:
+      `   run = "bash replit-run.sh"`
+    - 15f. Create `replit-run.sh` script:
+      `bash
+      #!/usr/bin/env bash
+      set -e
+
+    # Install backend deps
+
+    pip install -r backend/requirements.txt
+
+    # Install frontend deps and build
+
+    cd frontend
+    npm install --legacy-peer-deps
+    npm run build
+    cd ..
+
+    # Start FastAPI and serve dist/ via StaticFiles
+
+    uvicorn backend.main:app --host 0.0.0.0 --port 8000
+    `
+
+    - 15g. Update `backend/main.py` to serve static files from `frontend/dist` when `os.getenv("ENV") == "production"`.
+    - 15h. Document local vs Replit commands in `README.md`.
+    - 15i. Add top-level `.gitignore` (see draft below).
+    - Success: Clicking **Run** in Replit builds the frontend once and starts the backend, serving the compiled React app on port `8000`; local development workflow (`npm run dev` + `uvicorn --reload`) remains unchanged.
+
+### .gitignore (draft)
+
+```
+# ---- General ----
+.DS_Store
+.env
+.env.local
+*.log
+*.sqlite3
+speed.db
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env/
+.venv/
+venv/
+dist/
+build/
+
+# ---- Node / Frontend ----
+frontend/node_modules/
+frontend/.vite/
+frontend/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm/
+.cache/
+coverage/
+
+# ---- IDE / Editor ----
+.idea/
+.vscode/
+*.sw?
+
+# ---- Docker ----
+*.tar
+**/Dockerfile
+**/docker-compose*
+
+# ---- Replit ----
+*.replit
+replit.nix
+
+# ---- Misc ----
+*.orig
+```
 
 ### Project Status Board
 
@@ -157,6 +248,7 @@ A mobile-first React web app that shows a Mapbox map centered on a live location
 - [ ] 12. 3D model marker
 - [ ] 13. Interface cleanup
 - [ ] 14. Remove pulsing + city autocomplete (frontend)
+- [x] 15. Replit deployment & environment configuration ✅
 
 - [x] Map resize observer hotfix: map now resizes to full container on mount ✅
 - [x] FlatMap resize observer hotfix: same fix applied to FlatMap component ✅

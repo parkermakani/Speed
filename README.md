@@ -38,20 +38,51 @@ npm run dev
 
 Frontend runs on http://localhost:5173
 
-### Environment Variables
+## Environment Variables
 
-Create `.env` files in both frontend and backend directories:
+- Copy `env.example` to `.env` at the project root (ignored by Git) and fill in secrets.
+- All frontend variables are prefixed with `VITE_`.
 
-**backend/.env**
 ```
-ADMIN_PASSWORD=your_admin_password
-JWT_SECRET=your_jwt_secret
-```
+# .env (local)
+ENV=development
+MAPBOX_TOKEN=your_mapbox_token
+ADMIN_PASSWORD=super_secure_password
+JWT_SECRET=super_secret_jwt
+GOOGLE_PLACES_API_KEY=your_google_places_api_key
 
-**frontend/.env**
-```
-VITE_MAPBOX_TOKEN=your_mapbox_token
+# Front-end (Vite)
+VITE_MAPBOX_TOKEN=$MAPBOX_TOKEN
 VITE_API_BASE_URL=http://localhost:8000
+```
+
+> **Note**: On Replit you will add these keys in the **Secrets** tab instead of a physical `.env` file.
+
+### Local Development Commands
+
+```bash
+# start backend (auto-reload)
+uvicorn backend.main:app --reload
+
+# in another terminal start frontend dev server
+cd frontend && npm run dev
+```
+
+### Deploying to Replit
+
+1. Fork/import this repo into Replit.
+2. Open the Secrets tab and add the same keys as in `.env` (**MAPBOX_TOKEN**, **ADMIN_PASSWORD**, **JWT_SECRET**, **GOOGLE_PLACES_API_KEY**). Replit automatically injects them as environment variables.
+3. Ensure **ENV=production** is set in the Secrets so FastAPI serves the built frontend.
+4. Click **Run**. Replit executes `bash replit-run.sh` defined in `.replit` which:
+   - installs Python deps (`pip install -r backend/requirements.txt`)
+   - installs Node deps & builds the React app (`npm install && npm run build`)
+   - starts FastAPI on port 8000 and mounts the `frontend/dist` folder
+5. The repl will expose the web server on its assigned public URL.
+
+### Production Build (Docker optional)
+
+```bash
+bash replit-run.sh   # replicates the build/run locally
 ```
 
 ## Docker Setup
