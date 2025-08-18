@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import AnimatedMotorcycle from "./AnimatedMotorcycle";
+import ReactDOM from "react-dom/client";
 // Quote overlay removed; quote will be rendered at page level
 
 interface FlatMapProps {
@@ -20,12 +22,7 @@ mapboxgl.accessToken = MAPBOX_TOKEN || "";
 const getCSSVariable = (name: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-// LocIcon helper
-const getRandomIcon = () => {
-  const total = 11;
-  const n = Math.floor(Math.random() * total) + 1;
-  return new URL(`../assets/LocIcons/LocIcon${n}.png`, import.meta.url).href;
-};
+// getRandomIcon no longer needed (legacy)
 
 // Free US states geojson (same as 3D version)
 const STATES_URL =
@@ -116,17 +113,17 @@ export function FlatMap({ lat, lng, state }: FlatMapProps) {
     }
 
     const create = () => {
-      const img = document.createElement("img");
-      img.src = getRandomIcon();
-      img.style.width = "75px";
-      img.style.height = "75x";
-      img.style.borderRadius = "50%";
-      img.style.boxShadow = "var(--shadow-lg)";
-      img.style.zIndex = "1000";
+      const container = document.createElement("div");
+      // size controlled by component; just ensure pointer events none so doesn't block map interactions
+      container.style.pointerEvents = "none";
+
+      // Mount React component inside container
+      ReactDOM.createRoot(container).render(<AnimatedMotorcycle size={300} />);
 
       markerRef.current = new mapboxgl.Marker({
-        element: img,
-        anchor: "bottom",
+        element: container,
+        anchor: "center",
+          offset: [-50, -45], // half of 300px to align bottom of image with coordinate
       })
         .setLngLat([lng, lat])
         .addTo(map);
