@@ -1,0 +1,197 @@
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  position: relative; /* allow absolute header positioning */
+  overflow: hidden; /* prevent extra scroll height from overlay header */
+}
+
+.app.loading,
+.app.error {
+  justify-content: center;
+  align-items: center;
+  font-size: var(--text-lg);
+}
+
+.site-header {
+  position: relative; /* allow it to take up height so quote sits below */
+  width: 100%;
+  z-index: 50;
+  background: transparent;
+  padding: var(--space-3) var(--space-6);
+  text-align: center;
+  overflow: hidden;
+  box-sizing: border-box; /* include padding in width calc */
+}
+
+/* elevate header children above ::before blur layer */
+.site-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Pseudo-element applies blur and masks it so it fades out */
+.site-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  /* Fade the blur by masking top→bottom */
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  z-index: 0; /* ensure below logo/text */
+}
+
+/* Remove obsolete ::after gradient overlay */
+.site-header::after {
+  content: none;
+}
+
+.site-title {
+  margin: 0;
+  display: inline-block;
+}
+
+.site-logo {
+  height: clamp(40px, 10vw, 100px);
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.chromatic-text {
+  position: relative;
+  display: inline-block;
+}
+
+.chromatic-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.chromatic-base {
+  font-family: "hwt-american-solid", var(--font-sans);
+  color: var(--color-star-white);
+  position: relative;
+  z-index: 1;
+}
+
+.chromatic-inset {
+  font-family: "hwt-american-inset", var(--font-sans);
+  color: var(--color-primary);
+  z-index: 3;
+}
+
+.chromatic-stars-bottom {
+  font-family: "hwt-american-stars-bottom", var(--font-sans);
+  color: #1a1a1a;
+  z-index: 4;
+}
+
+.chromatic-outline {
+  font-family: "hwt-american-outline", var(--font-sans);
+  color: var(--color-text-border);
+  z-index: 2;
+}
+
+.map-container {
+  flex: none;
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  /* leave header overlay on top, no padding so map is full */
+}
+
+.map-placeholder {
+  flex: 1;
+  background: linear-gradient(
+    135deg,
+    var(--color-surface) 0%,
+    var(--color-bg-elevated) 100%
+  );
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  min-height: 70vh;
+}
+
+.marker-placeholder {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.marker-dot {
+  width: var(--space-4);
+  height: var(--space-4);
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  border: 3px solid var(--color-text);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-docked);
+}
+
+.marker-pulse {
+  position: absolute;
+  width: var(--space-10);
+  height: var(--space-10);
+  background: var(--color-primary-light);
+  border-radius: var(--radius-full);
+  animation: pulse var(--duration-slower) infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.coordinates {
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+}
+
+.quote-container {
+  padding: var(--space-6);
+  background: var(--color-bg-overlay);
+  text-align: center;
+}
+
+.quote {
+  font-size: var(--text-lg);
+  font-style: italic;
+  margin: 0 0 var(--space-2) 0;
+  color: var(--color-text-secondary);
+}
+
+.last-updated {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}

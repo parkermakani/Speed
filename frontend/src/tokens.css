@@ -1,0 +1,144 @@
+/* Design Tokens - CSS Variables */
+:root {
+  /* American Theme Colors */
+  --color-liberty-blue: #0A3161;
+  --color-liberty-blue-dark: #092a52;
+  --color-freedom-red: #B31942;
+  --color-star-white: #FFFFFF;
+  --color-steel-gray: #4B4B4B;
+  --color-sky-stripe: #3C8DFF;
+  --color-vintage-gold: #FFD700;
+  
+  /* Updated Color Mappings */
+  --color-bg: var(--color-liberty-blue);
+  --color-bg-elevated: rgba(10, 49, 97, 0.8);
+  --color-bg-overlay: rgba(10, 49, 97, 0.9);
+  --color-surface: rgba(75, 75, 75, 0.1);
+  --color-surface-hover: rgba(75, 75, 75, 0.2);
+  --color-border: var(--color-steel-gray);
+  --color-border-focus: var(--color-sky-stripe);
+  
+  --color-text: var(--color-star-white);
+  --color-text-secondary: rgba(255, 255, 255, 0.8);
+  --color-text-muted: var(--color-steel-gray);
+  --color-text-inverse: var(--color-liberty-blue);
+  --color-text-border: var(--color-liberty-blue-dark);
+  
+  --color-primary: var(--color-freedom-red);
+  --color-primary-hover: rgba(179, 25, 66, 0.8);
+  --color-primary-light: rgba(179, 25, 66, 0.3);
+  --color-primary-dark: rgba(179, 25, 66, 0.9);
+  
+  --color-accent: var(--color-sky-stripe);
+  --color-accent-hover: rgba(60, 141, 255, 0.8);
+  
+  --color-success: #48bb78;
+  --color-warning: var(--color-vintage-gold);
+  --color-error: var(--color-freedom-red);
+  
+  /* Spacing Scale */
+  --space-0: 0;
+  --space-1: 0.25rem;  /* 4px */
+  --space-2: 0.5rem;   /* 8px */
+  --space-3: 0.75rem;  /* 12px */
+  --space-4: 1rem;     /* 16px */
+  --space-5: 1.25rem;  /* 20px */
+  --space-6: 1.5rem;   /* 24px */
+  --space-8: 2rem;     /* 32px */
+  --space-10: 2.5rem;  /* 40px */
+  --space-12: 3rem;    /* 48px */
+  --space-16: 4rem;    /* 64px */
+  --space-20: 5rem;    /* 80px */
+  
+  /* Typography */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+  
+  --text-xs: 0.75rem;    /* 12px */
+  --text-sm: 0.875rem;   /* 14px */
+  --text-base: 1rem;     /* 16px */
+  --text-lg: 1.125rem;   /* 18px */
+  --text-xl: 1.25rem;    /* 20px */
+  --text-2xl: 1.5rem;    /* 24px */
+  --text-3xl: 1.875rem;  /* 30px */
+  --text-4xl: 2.25rem;   /* 36px */
+  
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+  
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* Border Radius */
+  --radius-none: 0;
+  --radius-sm: 0.125rem;  /* 2px */
+  --radius-base: 0.25rem; /* 4px */
+  --radius-md: 0.375rem;  /* 6px */
+  --radius-lg: 0.5rem;    /* 8px */
+  --radius-xl: 0.75rem;   /* 12px */
+  --radius-2xl: 1rem;     /* 16px */
+  --radius-full: 9999px;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-base: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  
+  /* Breakpoints (for reference in JS) */
+  --bp-sm: 640px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+  --bp-xl: 1280px;
+  --bp-2xl: 1536px;
+  
+  /* Z-index */
+  --z-base: 0;
+  --z-docked: 10;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-banner: 1200;
+  --z-overlay: 1300;
+  --z-modal: 1400;
+  --z-popover: 1500;
+  --z-skipLink: 1600;
+  --z-toast: 1700;
+  --z-tooltip: 1800;
+  
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 300ms ease;
+  
+  /* Animation durations */
+  --duration-instant: 0ms;
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 500ms;
+}
+
+/* Mobile-first responsive breakpoints */
+@media (max-width: 640px) {
+  :root {
+    --space-container: var(--space-4);
+    --text-scale: 0.9;
+  }
+}
+
+@media (min-width: 641px) {
+  :root {
+    --space-container: var(--space-6);
+    --text-scale: 1;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --space-container: var(--space-8);
+  }
+}
