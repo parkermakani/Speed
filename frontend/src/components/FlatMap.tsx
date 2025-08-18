@@ -114,16 +114,27 @@ export function FlatMap({ lat, lng, state }: FlatMapProps) {
 
     const create = () => {
       const container = document.createElement("div");
-      // size controlled by component; just ensure pointer events none so doesn't block map interactions
-      container.style.pointerEvents = "none";
+      // Allow clicks on marker
+      container.style.pointerEvents = "auto";
 
       // Mount React component inside container
-      ReactDOM.createRoot(container).render(<AnimatedMotorcycle size={300} />);
+      ReactDOM.createRoot(container).render(
+        <AnimatedMotorcycle
+          size={300}
+          showBorder={false}
+          clickWidth={120}
+          clickHeight={140}
+          clickOffsetX={150}
+          clickOffsetY={80}
+          showClickBorder={false}
+          onClick={() => console.log("Motorcycle marker clicked")}
+        />
+      );
 
       markerRef.current = new mapboxgl.Marker({
         element: container,
         anchor: "center",
-          offset: [-50, -45], // half of 300px to align bottom of image with coordinate
+        offset: [-50, -45], // half of 300px to align bottom of image with coordinate
       })
         .setLngLat([lng, lat])
         .addTo(map);

@@ -12,8 +12,8 @@ from fastapi.staticfiles import StaticFiles
 load_dotenv()
 
 from backend.models import Status, StatusCreate, StatusResponse
-from database import create_db_and_tables, get_session
-from auth import (
+from backend.database import create_db_and_tables, get_session
+from backend.auth import (
     LoginRequest, TokenResponse, create_access_token, 
     verify_admin_password, get_current_admin, JWT_EXPIRE_MINUTES
 )
@@ -42,7 +42,7 @@ def on_startup():
     create_db_and_tables()
     
     # Create initial status if none exists
-    from database import engine
+    from backend.database import engine
     from sqlalchemy import inspect, text
     with Session(engine) as session:
         # Schema migration – drop deprecated columns if present and add new ones as needed

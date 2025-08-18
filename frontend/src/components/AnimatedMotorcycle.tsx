@@ -16,6 +16,25 @@ export interface AnimatedMotorcycleProps {
    * Additional className(s) for the underlying img element.
    */
   className?: string;
+  /**
+   * Optional click handler (e.g., open modal, etc.)
+   */
+  onClick?: () => void;
+  /**
+   * Show debug border; helpful when sizing/anchoring.
+   */
+  showBorder?: boolean;
+
+  /** Width of the clickable overlay in pixels (defaults to `size`). */
+  clickWidth?: number;
+  /** Height of the clickable overlay in pixels (defaults to `size`). */
+  clickHeight?: number;
+  /** X offset (px) of clickable overlay relative to top‐left of the image. */
+  clickOffsetX?: number;
+  /** Y offset (px) of clickable overlay relative to top‐left of the image. */
+  clickOffsetY?: number;
+  /** Show border around the clickable overlay for debugging. */
+  showClickBorder?: boolean;
 }
 
 /**
@@ -24,8 +43,15 @@ export interface AnimatedMotorcycleProps {
  * it can be rendered anywhere in the React tree.
  */
 const AnimatedMotorcycle: React.FC<AnimatedMotorcycleProps> = ({
-  size = 200,
+  size = 64,
   className,
+  onClick,
+  showBorder = false,
+  clickWidth,
+  clickHeight,
+  clickOffsetX = 0,
+  clickOffsetY = 0,
+  showClickBorder = false,
 }) => {
   const [frame, setFrame] = useState(0);
 
@@ -36,16 +62,44 @@ const AnimatedMotorcycle: React.FC<AnimatedMotorcycleProps> = ({
     return () => clearInterval(id);
   }, []);
 
+  const overlayW = clickWidth ?? size;
+  const overlayH = clickHeight ?? size;
+
   return (
-    <img
-      src={FRAMES[frame]}
-      width={size}
-      height={size}
+    <div
+      style={{ position: "relative", width: size, height: size }}
       className={className}
-      alt="Animated motorcycle"
-      draggable={false}
-      style={{ pointerEvents: "none" }}
-    />
+    >
+      <img
+        src={FRAMES[frame]}
+        width={size}
+        height={size}
+        alt="Animated motorcycle"
+        draggable={false}
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          border: showBorder ? "2px dashed red" : undefined,
+          userSelect: "none",
+        }}
+      />
+      {onClick && (
+        <div
+          onClick={onClick}
+          style={{
+            position: "absolute",
+            left: clickOffsetX,
+            top: clickOffsetY,
+            width: overlayW,
+            height: overlayH,
+            cursor: "pointer",
+            border: showClickBorder ? "2px dotted blue" : undefined,
+            background: "transparent",
+          }}
+        />
+      )}
+    </div>
   );
 };
 
