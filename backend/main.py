@@ -240,9 +240,9 @@ async def search_places(query: str = Query(..., min_length=1)):
         raise HTTPException(status_code=500, detail=f"Failed to search places: {str(e)}")
 
 
-@app.get("/")
-async def root():
-    """API health check"""
+# Health check under API prefix so root can serve frontend
+@api.get("/health")
+async def health_check():
     return {
         "message": "Speed Live Map API",
         "version": "1.0.0",
