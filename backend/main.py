@@ -250,6 +250,7 @@ async def root():
     }
 
 # --- Mount static files LAST so API routes take precedence ---
+app.include_router(api)
 if os.getenv("ENV") == "production":
     frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
     if os.path.isdir(frontend_dist):
