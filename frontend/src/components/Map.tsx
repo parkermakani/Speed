@@ -170,6 +170,7 @@ export function Map({ lat, lng, state }: MapProps) {
         renderer.autoClear = false;
       },
       render(gl, matrix) {
+        void gl; // mark parameter as intentionally unused to satisfy TS
         const rotationX = new THREE.Matrix4().makeRotationAxis(
           new THREE.Vector3(1, 0, 0),
           modelTransform.rotateX
