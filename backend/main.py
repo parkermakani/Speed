@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 # Load environment variables from .env file
 load_dotenv()
 
-from models import Status, StatusCreate, StatusResponse
+from backend.models import Status, StatusCreate, StatusResponse
 from database import create_db_and_tables, get_session
 from auth import (
     LoginRequest, TokenResponse, create_access_token, 
