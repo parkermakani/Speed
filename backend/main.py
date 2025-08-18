@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, Depends, Query, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 from datetime import datetime, timedelta
@@ -18,13 +18,11 @@ from backend.auth import (
     verify_admin_password, get_current_admin, JWT_EXPIRE_MINUTES
 )
 
+
 app = FastAPI(title="Speed Live Map API", version="1.0.0")
 
-# Serve static files (production)
-if os.getenv("ENV") == "production":
-    frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
-    if os.path.isdir(frontend_dist):
-        app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
+# API router with /api prefix
+api = APIRouter(prefix="/api")
 
 # CORS middleware
 app.add_middleware(
@@ -86,7 +84,7 @@ def on_startup():
             session.commit()
 
 
-@app.get("/status", response_model=StatusResponse)
+@api.get("/status", response_model=StatusResponse)
 async def get_status(session: Session = Depends(get_session)):
     """Get current location and quote status"""
     try:
@@ -99,7 +97,7 @@ async def get_status(session: Session = Depends(get_session)):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-@app.post("/status", response_model=StatusResponse)
+@api.post("/status", response_model=StatusResponse)
 async def update_status(
     status_data: StatusCreate,
     session: Session = Depends(get_session),
@@ -143,7 +141,7 @@ async def update_status(
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-@app.post("/auth/login", response_model=TokenResponse)
+@api.post("/auth/login", response_model=TokenResponse)
 async def login(login_data: LoginRequest):
     """Admin login endpoint"""
     if not verify_admin_password(login_data.password):
@@ -164,13 +162,13 @@ async def login(login_data: LoginRequest):
     )
 
 
-@app.post("/auth/logout")
+@api.post("/auth/logout")
 async def logout():
     """Admin logout endpoint (client-side token removal)"""
     return {"message": "Successfully logged out"}
 
 
-@app.get("/places/search")
+@api.get("/places/search")
 async def search_places(query: str = Query(..., min_length=1)):
     """Search places using Google Places API (proxy endpoint)"""
     try:
@@ -250,6 +248,12 @@ async def root():
         "version": "1.0.0",
         "status": "running"
     }
+
+# --- Mount static files LAST so API routes take precedence ---
+if os.getenv("ENV") == "production":
+    frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+    if os.path.isdir(frontend_dist):
+        app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
 
 
 if __name__ == "__main__":

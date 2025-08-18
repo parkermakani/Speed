@@ -1,7 +1,7 @@
 import type { Status, StatusUpdate } from "../types";
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+  import.meta.env.VITE_API_BASE_URL || window.location.origin;
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -10,7 +10,7 @@ export class ApiError extends Error {
 }
 
 export async function fetchStatus(): Promise<Status> {
-  const response = await fetch(`${API_BASE_URL}/status`);
+  const response = await fetch(`${API_BASE_URL}/api/status`);
 
   if (!response.ok) {
     throw new ApiError(response.status, "Failed to fetch status");
@@ -37,7 +37,7 @@ export async function updateStatus(
 
   // Nothing to transform for state, lat, lng
 
-  const response = await fetch(`${API_BASE_URL}/status`, {
+  const response = await fetch(`${API_BASE_URL}/api/status`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
