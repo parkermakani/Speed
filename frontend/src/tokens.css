@@ -8,6 +8,9 @@
   --color-steel-gray: #4B4B4B;
   --color-sky-stripe: #3C8DFF;
   --color-vintage-gold: #FFD700;
+
+  --color-land: #DEC29B;
+  --color-land-dark: #6d5e4a;
   
   /* Updated Color Mappings */
   --color-bg: var(--color-liberty-blue);

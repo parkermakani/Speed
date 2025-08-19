@@ -178,6 +178,15 @@ A mobile-first React web app that shows a Mapbox map centered on a live location
     - 17e. **Tests & docs**: Unit tests for sleep endpoints; frontend test that placeholder renders given mocked `isSleep=true`. Update README with explanation.
     - **Success**: Admin can flip Sleep switch; public site swaps to placeholder view within one refresh, switch back resumes full map.
 
+18. Shop drawer overlay
+
+    - 18a. **Frontend**: Create `Drawer` primitive with overlay/backdrop and slide-in/out animation from right; width 100% on mobile (below `--bp-md` breakpoint), 30% on desktop.
+    - 18b. **Frontend**: Create `ShopTab` component: small vertical tab anchored to right side with shop icon (`shop.svg`). Clicking toggles Drawer; include hover/focus styles.
+    - 18c. **Integration**: Wire `ShopTab` and `Drawer` in `App.tsx`; manage open/close state via React context or local state. Pressing `Esc` or clicking backdrop closes drawer.
+    - 18d. **Accessibility**: Trap focus inside drawer, set `aria-modal="true"` and `role="dialog"`; ensure background content is inert (`aria-hidden`).
+    - 18e. **Testing**: Unit tests for open/close interactions, keyboard navigation, and responsive width using viewport mocks.
+    - **Success**: On mobile (<768px), drawer covers full viewport; on desktop (≥768px), drawer animates to 30% width; background content is scroll-locked; `Esc` and backdrop close it; vertical tab remains visible when drawer is closed.
+
 ### .gitignore (draft)
 
 ```
@@ -284,6 +293,10 @@ replit.nix
   - ✅ 17a. Backend: added is_sleep column migration & status; GET/PUT /sleep endpoints.
   - ✅ 17b. Frontend: Admin switch toggles sleep via /sleep, placeholder view in App when sleep.
   - ⏳ 17c. Tests & docs outstanding.
+
+|- [ ] 18. Shop drawer overlay (frontend)
+
+- ✅ 18a. Drawer primitive component implemented with responsive width & slide animation
 
 - [x] Map resize observer hotfix: map now resizes to full container on mount ✅
 - [x] FlatMap resize observer hotfix: same fix applied to FlatMap component ✅

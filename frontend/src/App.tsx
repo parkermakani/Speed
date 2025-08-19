@@ -7,12 +7,15 @@ import type { Status, JourneyResponse } from "./types";
 import { fetchStatus, fetchJourney, fetchSleep } from "./services/api";
 import type { SleepResponse } from "./types";
 import "./App.css";
+import { Drawer } from "./components/primitives/Drawer";
+import { ShopTab } from "./components/ShopTab";
 
 function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [journey, setJourney] = useState<JourneyResponse | null>(null);
   const [sleep, setSleep] = useState<SleepResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [shopOpen, setShopOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -99,6 +102,16 @@ function App() {
 
       {/* Footer overlay */}
       <Footer />
+
+      {/* Shop UI */}
+      <ShopTab isOpen={shopOpen} toggle={() => setShopOpen((o) => !o)} />
+      <Drawer isOpen={shopOpen} onClose={() => setShopOpen(false)}>
+        {/* Placeholder content for shop */}
+        <div style={{ padding: "var(--space-6)", color: "var(--color-text)" }}>
+          <h2 style={{ marginTop: 0 }}>Speed Merch</h2>
+          <p>Coming soon! 🚧</p>
+        </div>
+      </Drawer>
     </div>
   );
 }

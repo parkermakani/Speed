@@ -18,7 +18,7 @@ export const Quote: React.FC<QuoteProps> = ({ quote }) => {
       }}
     >
       <ChromaticText
-        text={quote}
+        text={`"${quote}"`}
         layers={["base", "outline"]}
         style={{
           fontSize: "1.5rem",

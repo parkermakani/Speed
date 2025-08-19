@@ -5,12 +5,14 @@ import editSvg from "../../assets/Icons/edit.svg?raw";
 import leftChevronSvg from "../../assets/Icons/left-chevron.svg?raw";
 import rightChevronSvg from "../../assets/Icons/right-chevron.svg?raw";
 import settingsSvg from "../../assets/Icons/settings.svg?raw";
+import shopSvg from "../../assets/Icons/shop.svg?raw";
 
 const ICONS: Record<string, string> = {
   edit: editSvg,
   "left-chevron": leftChevronSvg,
   "right-chevron": rightChevronSvg,
   settings: settingsSvg,
+  shop: shopSvg,
 };
 
 interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
