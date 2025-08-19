@@ -315,6 +315,7 @@ replit.nix
 
 |- ✅ ModelViewer implemented and tested (Task 19 complete).
 |- ✅ ShopTab alert icon verified in dev – after 10–20 s idle, icon changes to "shop-alert"; lints pass.
+|- ✅ Mobile gray-screen bug (Mapbox on iOS/Android): Added WebGL support check + safe fallback in `FlatMap.tsx`. Devices without WebGL now see a polite message instead of a crash.
 |- ✅ ShopTab alert audio implemented – wav plays when icon switches; awaiting manual validation.
 
 ### Recent Enhancements (Latest Session)
@@ -369,6 +370,7 @@ replit.nix
 - Confirm preference for persistence layer: SQLite (recommended) vs JSON file. Defaulting to SQLite unless specified otherwise.
 - Confirm preference for auth token style: httpOnly cookie vs JWT bearer. Defaulting to JWT in Authorization header for simplicity.
 - Provide Mapbox token at runtime via `.env` for frontend.
+- **Mobile Gray Screen Fix (2025-08-19)**: Implemented `mapboxgl.supported()` guard and try/catch around Map initialisation. Added fallback style and user-facing message. Please test on Chrome/Safari mobile and confirm the map or fallback message appears instead of a blank gray screen.
 - Confirm allowed CORS origin for local and prod.
 - **Bug Fix (2025-08-17)**: Resolved AdminDashboard runtime error. Root cause: `FormField` assumed a **single child** but City field passed both `<Input>` and dropdown, producing an array and causing React to treat element type as undefined after `cloneElement`. Refactored City field: `FormField` now wraps only `<Input>`, and the suggestions dropdown is rendered outside within a relative wrapper. Please verify dashboard loads and dropdown still positions correctly.
 - **Backend ↔ Frontend sync (2025-08-17)**: Frontend now normalizes snake_case (`city_polygon`) to camelCase (`cityPolygon`) on **both** read and write. Updated `services/api.fetchStatus` and refactored `App.tsx` to use it. Map now receives correct polygon string from backend record so city boundaries render.

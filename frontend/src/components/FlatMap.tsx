@@ -49,6 +49,7 @@ export function FlatMap({
   const markerRef = useRef<mapboxgl.Marker | null>(null);
   const pastMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const [loading, setLoading] = useState(true);
+  const [unsupported, setUnsupported] = useState(false);
 
   const addStateLayers = async (stateName: string) => {
     if (!mapRef.current) return;
@@ -239,6 +240,14 @@ export function FlatMap({
   // scaling removed – icons fixed size
 
   useEffect(() => {
+    // Gracefully handle devices/browsers without WebGL support (some mobile browsers)
+    if (!mapboxgl.supported()) {
+      console.warn("Mapbox GL JS is not supported on this device/browser.");
+      setUnsupported(true);
+      setLoading(false);
+      return;
+    }
+
     if (!containerRef.current) return;
 
     // Expanded bounds give users room to pan/zoom slightly beyond mainland USA
@@ -247,16 +256,25 @@ export function FlatMap({
       [-55, 55], // east / north margins extended ~5–6°
     ];
 
-    mapRef.current = new mapboxgl.Map({
-      container: containerRef.current,
-      style: import.meta.env.VITE_MAPBOX_STYLE,
-      center: [-95, 40], // rough USA centre
-      zoom: 2.2, // fits USA slightly farther out
-      pitch: 0,
-      bearing: 0,
-      dragRotate: false,
-      pitchWithRotate: false,
-    });
+    try {
+      mapRef.current = new mapboxgl.Map({
+        container: containerRef.current,
+        style:
+          import.meta.env.VITE_MAPBOX_STYLE ||
+          "mapbox://styles/mapbox/light-v11", // sensible fallback
+        center: [-95, 40], // rough USA centre
+        zoom: 2.2, // fits USA slightly farther out
+        pitch: 0,
+        bearing: 0,
+        dragRotate: false,
+        pitchWithRotate: false,
+      });
+    } catch (err) {
+      console.error("Failed to initialise Mapbox map", err);
+      setUnsupported(true);
+      setLoading(false);
+      return;
+    }
 
     // Immediately constrain view
     // Allow a bit more zoom-out and keep loose bounds
@@ -307,6 +325,24 @@ export function FlatMap({
     return (
       <div style={{ padding: "1rem", textAlign: "center" }}>
         Mapbox token missing
+      </div>
+    );
+  }
+
+  if (unsupported) {
+    return (
+      <div
+        style={{
+          padding: "1rem",
+          textAlign: "center",
+          background: "var(--color-surface)",
+          color: "var(--color-text-secondary)",
+        }}
+      >
+        <p>
+          Interactive map is not supported on this device. Try viewing on a
+          desktop browser for the full experience.
+        </p>
       </div>
     );
   }
