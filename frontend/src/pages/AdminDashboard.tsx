@@ -117,8 +117,8 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.status === 401) {
-          setSubmitError("Authentication expired. Please log in again.");
-          // Could trigger logout here
+          setSubmitError("Session expired. Please log in again.");
+          logout();
         } else {
           setSubmitError(error.message);
         }

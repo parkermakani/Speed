@@ -8,6 +8,7 @@ import httpx
 import os
 from dotenv import load_dotenv
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 # Load environment variables from .env file
 load_dotenv()
@@ -473,6 +474,12 @@ if os.getenv("ENV") == "production":
     frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
     if os.path.isdir(frontend_dist):
         app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
+
+        index_path = os.path.join(frontend_dist, "index.html")
+
+        @app.get("/admin", include_in_schema=False)
+        async def serve_admin():
+            return FileResponse(index_path)
 
 
 if __name__ == "__main__":
