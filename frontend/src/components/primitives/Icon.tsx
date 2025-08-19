@@ -1,12 +1,12 @@
 import React from "react";
 
 // Import SVGs as raw strings so we can manipulate them at runtime
-import editSvg from "@icons/edit.svg?raw";
-import leftChevronSvg from "@icons/left-chevron.svg?raw";
-import rightChevronSvg from "@icons/right-chevron.svg?raw";
-import settingsSvg from "@icons/settings.svg?raw";
-import shopSvg from "@icons/shop.svg?raw";
-import shopAlertSvg from "@icons/shop-alert.svg?raw";
+import editSvg from "../../assets/Icons/edit.svg?raw";
+import leftChevronSvg from "../../assets/Icons/left-chevron.svg?raw";
+import rightChevronSvg from "../../assets/Icons/right-chevron.svg?raw";
+import settingsSvg from "../../assets/Icons/settings.svg?raw";
+import shopSvg from "../../assets/Icons/shop.svg?raw";
+import shopAlertSvg from "../../assets/Icons/shop-alert.svg?raw";
 
 const ICONS: Record<string, string> = {
   edit: editSvg,
