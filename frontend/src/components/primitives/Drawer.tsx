@@ -53,7 +53,7 @@ export const Drawer: React.FC<DrawerProps> = ({
   }, [isOpen]);
 
   const drawerRef = useRef<HTMLDivElement>(null);
-  const isMobile = useMediaQuery("(max-width: 767px)");
+  const isMobile = useMediaQuery("(max-width: 1299px)");
 
   // Focus trap while open
   useEffect(() => {
@@ -134,14 +134,14 @@ export const Drawer: React.FC<DrawerProps> = ({
   } as React.CSSProperties;
 
   // Override width for larger screens via inline media queries (CSS-in-JS style)
-  const desktopWidth = "40vw";
+  const desktopWidth = "700px";
   const styleTagId = "_drawer-styles";
   if (!document.getElementById(styleTagId)) {
     const styleEl = document.createElement("style");
     styleEl.id = styleTagId;
     styleEl.innerHTML = `
       .drawer-content { width: 100%; max-width: 100%; }
-      @media (min-width: 768px) {
+      @media (min-width: 1100px) {
         .drawer-content {
           width: ${desktopWidth};
           max-width: ${desktopWidth};

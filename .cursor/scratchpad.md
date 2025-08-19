@@ -187,6 +187,16 @@ A mobile-first React web app that shows a Mapbox map centered on a live location
     - 18e. **Testing**: Unit tests for open/close interactions, keyboard navigation, and responsive width using viewport mocks.
     - **Success**: On mobile (<768px), drawer covers full viewport; on desktop (≥768px), drawer animates to 30% width; background content is scroll-locked; `Esc` and backdrop close it; vertical tab remains visible when drawer is closed.
 
+19. Merch page 3D Model Viewer
+
+    - 19a. **Dependencies**: Add `@react-three/fiber` and `@react-three/drei` to frontend `package.json` and install via `npm install`.
+    - 19b. **3D asset**: Utilize existing `assets/3D/SpeedPin.glb`; create `types/glb.d.ts` to allow TypeScript import of `.glb` files as string URLs.
+    - 19c. **Component**: Create `ModelViewer` React component that renders a `<Canvas>` from `@react-three/fiber`, loads the GLB via `useGLTF`, adds ambient + directional lights and `OrbitControls`; accept optional `height?: number` prop (default 260).
+    - 19d. **Integration**: Update `components/Merch.tsx` to render `<ModelViewer />` above the products grid, maintaining responsive layout using the `Stack` primitive.
+    - 19e. **Styling**: Apply subtle gradient background and rounded corners to the viewer; respect `prefers-reduced-motion` by disabling auto‐rotate.
+    - 19f. **Testing**: Add React Testing Library test that mounts `ModelViewer` and expects a `canvas` element to be in the document without runtime errors.
+    - **Success**: Opening the shop drawer shows an interactive 3D model viewer above merch items; model loads within 1 s on broadband; grid layout unaffected; all lints and tests pass.
+
 ### .gitignore (draft)
 
 ```
@@ -295,34 +305,17 @@ replit.nix
   - ⏳ 17c. Tests & docs outstanding.
 
 |- [ ] 18. Shop drawer overlay (frontend)
+|- ✅ 18a. Drawer primitive component implemented with responsive width & slide animation
+|- ✅ 18b. ShopTab timed alert icon implemented – shop icon switches to alert after random 10–20 s delay
+|- ✅ 19. Merch page – 3D Model Viewer COMPLETE
 
-- ✅ 18a. Drawer primitive component implemented with responsive width & slide animation
-
-- [x] Map resize observer hotfix: map now resizes to full container on mount ✅
-- [x] FlatMap resize observer hotfix: same fix applied to FlatMap component ✅
-- [x] FlatMap: expanded USA bounds & lowered minZoom for more lenient navigation ✅
-- [x] Full-viewport map & overlay header: CSS updates to `App.css` (header absolute, map-container 100vh) ✅
+- Verified in dev: viewer displays and orbits; test suite passes via `npm run test`.
 
 ### Current Status / Progress Tracking
 
-- ✅ **Task 1 COMPLETE**: Project scaffolding finished. Both apps running locally.
-- ✅ **Task 2 COMPLETE**: Design tokens and UI primitives system implemented.
-- ✅ **Task 3 COMPLETE**: Mapbox integration with live pulsing marker and quote display.
-- ✅ **Task 4 COMPLETE**: Backend persistence with SQLite and validated endpoints.
-- ✅ **Task 5 COMPLETE**: Admin authentication with JWT and environment-based password.
-- ✅ **Task 6 COMPLETE**: Admin dashboard with full location/quote management.
-  - Protected admin routes with authentication flow
-  - Clean login page with password validation
-  - Comprehensive dashboard with current status display
-  - Location/quote update form with real-time validation
-  - Mobile-first responsive design using design system primitives
-  - Error handling, loading states, and user feedback
-  - Logout functionality and secure token management
-  - Instant map updates after successful form submissions
-- ✅ **Task 10 COMPLETE** (verified across browsers)
-- **Map Simplification (2025-08-17)**: Removed marker + radius logic in `Map.tsx`, added `addOrUpdateCityPolygon` that updates/creates polygon layer and fits map to bounds using `@turf/bbox`. Map updates when `cityPolygon` prop changes. Any old privacy circle/marker now gone.
-
-**Hotfix (2025-08-18)**: Added `ResizeObserver` in `Map.tsx` to trigger `map.resize()` when the container's size changes, fixing the "small corner" rendering bug on initial load. Awaiting user verification across viewports.
+|- ✅ ModelViewer implemented and tested (Task 19 complete).
+|- ✅ ShopTab alert icon verified in dev – after 10–20 s idle, icon changes to "shop-alert"; lints pass.
+|- ✅ ShopTab alert audio implemented – wav plays when icon switches; awaiting manual validation.
 
 ### Recent Enhancements (Latest Session)
 
@@ -379,6 +372,37 @@ replit.nix
 - Confirm allowed CORS origin for local and prod.
 - **Bug Fix (2025-08-17)**: Resolved AdminDashboard runtime error. Root cause: `FormField` assumed a **single child** but City field passed both `<Input>` and dropdown, producing an array and causing React to treat element type as undefined after `cloneElement`. Refactored City field: `FormField` now wraps only `<Input>`, and the suggestions dropdown is rendered outside within a relative wrapper. Please verify dashboard loads and dropdown still positions correctly.
 - **Backend ↔ Frontend sync (2025-08-17)**: Frontend now normalizes snake_case (`city_polygon`) to camelCase (`cityPolygon`) on **both** read and write. Updated `services/api.fetchStatus` and refactored `App.tsx` to use it. Map now receives correct polygon string from backend record so city boundaries render.
+
+**ModelViewer Progress (2025-08-19)**: Implemented interactive 3D viewer using React Three Fiber and Drei. Added `@react-three/fiber` & `@react-three/drei` dependencies, created `ModelViewer` component, and integrated it into the Merch page. Pending: add Vitest + RTL test to satisfy Task 19f.
+
+**Dependency conflict fix (2025-08-19)**: `@react-three/fiber` peer range expects React <19.0, causing `npm install` failure. Added `frontend/.npmrc` with `legacy-peer-deps=true` so local `npm install` succeeds without manual flag. Replit run script already installs with `--legacy-peer-deps`.
+
+**Test dep fix**: Pinned `@testing-library/react` to `^14.2.1` because 15.x does not yet exist on npm, resolving ETARGET error.
+
+**Vite assetsInclude fix**: Added `assetsInclude: ["**/*.glb"]` to `vite.config.ts` so Vite treats `.glb` files as static assets, resolving 500 error during model load.
+
+**React Three upgrade**: Upgraded `@react-three/fiber` to `^9.3.0` and `@react-three/drei` to `^10.7.3` for React 19 compatibility, resolving `ReactCurrentOwner` runtime error.
+
+**Merch layout update**: Refactored `Merch.tsx` into flex row so `ModelViewer` occupies left half and product grid fills right; responsive wrap for narrow screens.
+
+**Merch layout v2**: Updated to fixed 60%/40% width split regardless of viewport; viewer always left, product grid shrinks card min-width to 160px.
+
+**Merch layout v3**: Replaced flex with CSS grid `60% 40%` columns (no wrap) ensuring products never drop below viewer.
+
+**Drawer min-width**: Updated drawer: mobile breakpoint now 1299px, desktop width `clamp(700px,40vw,100%)` so it never shrinks below 700px before mobile full-screen.
+
+**ShopTab fix**: Corrected CSS syntax to `calc(-1 * clamp(...))` so transform applies; tab now slides with drawer.
+
+**ShopTab expand**: Updated transform to `calc(clamp(...)* -1)` ensuring movement scales beyond 700 px on large screens.
+
+**ShopTab dynamic**: Replaced CSS calc with JS: compute drawer width as `max(700, 40% viewport)` on resize; translate tab by -width so it always aligns.
+
+**Drawer constant width**: Requirement changed – desktop drawer fixed at 700 px. Updated `Drawer.tsx` `desktopWidth="700px"` and `ShopTab` transform to `translateX(-700px)`.
+
+**ModelViewer pivot**: Raised camera to y=1 and OrbitControls target to [0,1,0] so anchor point is higher.
+**ModelViewer height**: `height` prop now accepts `number | string` so `<ModelViewer height="100%" />` no longer triggers TS error.
+
+**npm audit (2025-08-19)**: 4 moderate vulnerabilities stemming from `vitest` <3 (via esbuild/vite). Potential fix is upgrading `vitest` to 3.2.4 (major) – needs compatibility check. Awaiting decision whether to update or ignore for now.
 
 ### Lessons
 

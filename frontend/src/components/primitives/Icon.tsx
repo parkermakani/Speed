@@ -6,6 +6,7 @@ import leftChevronSvg from "../../assets/Icons/left-chevron.svg?raw";
 import rightChevronSvg from "../../assets/Icons/right-chevron.svg?raw";
 import settingsSvg from "../../assets/Icons/settings.svg?raw";
 import shopSvg from "../../assets/Icons/shop.svg?raw";
+import shopAlertSvg from "../../assets/Icons/shop-alert.svg?raw";
 
 const ICONS: Record<string, string> = {
   edit: editSvg,
@@ -13,6 +14,7 @@ const ICONS: Record<string, string> = {
   "right-chevron": rightChevronSvg,
   settings: settingsSvg,
   shop: shopSvg,
+  "shop-alert": shopAlertSvg,
 };
 
 interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -37,6 +39,11 @@ interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
    * Defaults to `currentColor` so the icon inherits from surrounding text.
    */
   color?: string;
+  /**
+   * When true, keeps original fill/stroke colors from the SVG instead of
+   * overriding them. Useful for multi-color icons.
+   */
+  preserveColors?: boolean;
 }
 
 /**
@@ -50,6 +57,7 @@ export const Icon: React.FC<IconProps> = ({
   fill,
   color = "currentColor",
   style,
+  preserveColors = false,
   ...rest
 }) => {
   const rawSvg = ICONS[name];
@@ -64,17 +72,19 @@ export const Icon: React.FC<IconProps> = ({
 
   let processedSvg = rawSvg;
 
-  if (effectiveStroke) {
-    processedSvg = processedSvg.replace(
-      /stroke="[^"]+"/g,
-      `stroke="${effectiveStroke}"`
-    );
-  }
-  if (effectiveFill) {
-    processedSvg = processedSvg.replace(
-      /fill="[^"]+"/g,
-      `fill="${effectiveFill}"`
-    );
+  if (!preserveColors) {
+    if (effectiveStroke) {
+      processedSvg = processedSvg.replace(
+        /stroke="[^"]+"/g,
+        `stroke="${effectiveStroke}"`
+      );
+    }
+    if (effectiveFill) {
+      processedSvg = processedSvg.replace(
+        /fill="[^"]+"/g,
+        `fill="${effectiveFill}"`
+      );
+    }
   }
 
   const dimension = typeof size === "number" ? `${size}px` : size;

@@ -77,7 +77,7 @@
 
 .chromatic-stars-bottom {
   font-family: "hwt-american-stars-bottom", var(--font-sans);
-  color: #1a1a1a;
+  color: var(--color-star-white);
   z-index: 4;
 }
 

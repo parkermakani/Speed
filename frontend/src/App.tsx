@@ -9,6 +9,7 @@ import type { SleepResponse } from "./types";
 import "./App.css";
 import { Drawer } from "./components/primitives/Drawer";
 import { ShopTab } from "./components/ShopTab";
+import { Merch } from "./components/Merch";
 
 function App() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -106,11 +107,7 @@ function App() {
       {/* Shop UI */}
       <ShopTab isOpen={shopOpen} toggle={() => setShopOpen((o) => !o)} />
       <Drawer isOpen={shopOpen} onClose={() => setShopOpen(false)}>
-        {/* Placeholder content for shop */}
-        <div style={{ padding: "var(--space-6)", color: "var(--color-text)" }}>
-          <h2 style={{ marginTop: 0 }}>Speed Merch</h2>
-          <p>Coming soon! 🚧</p>
-        </div>
+        <Merch />
       </Drawer>
     </div>
   );
