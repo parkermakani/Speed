@@ -107,7 +107,7 @@ function App() {
       {/* Shop UI */}
       <ShopTab isOpen={shopOpen} toggle={() => setShopOpen((o) => !o)} />
       <Drawer isOpen={shopOpen} onClose={() => setShopOpen(false)}>
-        <Merch />
+        {shopOpen && <Merch />}
       </Drawer>
     </div>
   );
