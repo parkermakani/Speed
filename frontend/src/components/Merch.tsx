@@ -4,6 +4,8 @@ import { Button } from "./primitives/Button";
 import { Stack } from "./primitives/Stack";
 // 3D model removed for now – placeholder only
 import { ChromaticText } from "./ChromaticText";
+import shirtNavyImg from "../assets/examples/Shirt1.png";
+import shirtWhiteImg from "../assets/examples/Shirt2.png";
 
 interface Product {
   id: string;
@@ -16,25 +18,18 @@ interface Product {
 const PRODUCTS: Product[] = [
   {
     id: "tee",
-    name: "Speed Does America Tee",
-    price: "$25",
-    image: "https://placehold.co/300x200?text=Tee",
-    url: "#",
+    name: "Speed Does America Tee - Navy",
+    price: "$30",
+    image: shirtNavyImg,
+    url: "https://speed.store/products/gold-logo-black-tee",
   },
   {
     id: "hoodie",
-    name: "Patriotic Hoodie",
-    price: "$45",
-    image: "https://placehold.co/300x200?text=Hoodie",
-    url: "#",
-  },
-  {
-    id: "sticker",
-    name: "Logo Sticker Pack",
-    price: "$8",
-    image: "https://placehold.co/300x200?text=Stickers",
-    url: "#",
-  },
+    name: "Speed Does America Tee - White",
+    price: "$30",
+    image: shirtWhiteImg,
+    url: "https://speed.store/products/gold-logo-black-tee",
+  }
 ];
 
 export const Merch: React.FC = () => {
@@ -105,7 +100,7 @@ export const Merch: React.FC = () => {
                   {p.price}
                 </p>
                 <Button
-                  variant="secondary"
+                  variant="primary"
                   fullWidth
                   onClick={() => window.open(p.url, "_blank")}
                 >
