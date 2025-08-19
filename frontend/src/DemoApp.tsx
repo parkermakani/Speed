@@ -4,9 +4,9 @@ import { AdminLogin } from "./pages/AdminLogin";
 import { AdminDashboard } from "./pages/AdminDashboard";
 import App from "./App";
 import { Button } from "./components/primitives";
-import { useAuth } from "./hooks/useAuth";
+import { useAuth, AuthProvider } from "./hooks/useAuth";
 
-export function DemoApp() {
+function InnerApp() {
   // derive initial view from location
   const getViewFromPath = (path: string): "app" | "demo" | "admin" => {
     if (path.startsWith("/demo")) return "demo";
@@ -56,7 +56,13 @@ export function DemoApp() {
     }
 
     if (!isAuthenticated) {
-      return <AdminLogin onLoginSuccess={() => {}} />;
+      return (
+        <AdminLogin
+          onLoginSuccess={() => {
+            setCurrentView("admin");
+          }}
+        />
+      );
     }
 
     return (
@@ -104,5 +110,13 @@ export function DemoApp() {
       {currentView === "demo" && <Demo />}
       {currentView === "admin" && renderAdminView()}
     </div>
+  );
+}
+
+export function DemoApp() {
+  return (
+    <AuthProvider>
+      <InnerApp />
+    </AuthProvider>
   );
 }
