@@ -317,6 +317,7 @@ replit.nix
 |- ✅ ShopTab alert icon verified in dev – after 10–20 s idle, icon changes to "shop-alert"; lints pass.
 |- ✅ Mobile gray-screen bug (Mapbox on iOS/Android): Added WebGL support check + safe fallback in `FlatMap.tsx`. Devices without WebGL now see a polite message instead of a crash.
 |- ✅ 3D GLB 500 error on mobile: Merch page now lazy-loads `ModelViewer` only when drawer open **and** on ≥1100 px screens. Mobile devices skip the heavy asset, eliminating 500 errors.
+|- ✅ 3D preview temporarily removed: Merch now shows "3D preview coming soon" placeholder on all devices; ModelViewer & large GLB not imported at all.
 |- ✅ ShopTab alert audio implemented – wav plays when icon switches; awaiting manual validation.
 
 ### Recent Enhancements (Latest Session)

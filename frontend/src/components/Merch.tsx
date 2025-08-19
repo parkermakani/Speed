@@ -2,8 +2,7 @@ import React from "react";
 import { Card } from "./primitives/Card";
 import { Button } from "./primitives/Button";
 import { Stack } from "./primitives/Stack";
-import { lazy, Suspense } from "react";
-import { useMediaQuery } from "../hooks/useMediaQuery";
+// 3D model removed for now – placeholder only
 import { ChromaticText } from "./ChromaticText";
 
 interface Product {
@@ -38,13 +37,7 @@ const PRODUCTS: Product[] = [
   },
 ];
 
-// Lazy-load the heavy 3D viewer so the ~40 MB GLB is downloaded only when truly needed
-const ModelViewer = lazy(() =>
-  import("./ModelViewer").then((m) => ({ default: m.ModelViewer }))
-);
-
 export const Merch: React.FC = () => {
-  const isWide = useMediaQuery("(min-width: 1100px)"); // only show 3D viewer on larger screens
   return (
     <div style={{ padding: "var(--space-6)" }}>
       <div style={{ textAlign: "center" }}>
@@ -65,39 +58,22 @@ export const Merch: React.FC = () => {
           columnGap: "var(--space-4)",
         }}
       >
-        {/* Left: Model viewer (desktop only) */}
+        {/* Left: Placeholder – 3D coming soon */}
         <div style={{ width: "100%" }}>
-          {isWide ? (
-            <Suspense
-              fallback={
-                <div
-                  style={{
-                    color: "var(--color-text-secondary)",
-                    textAlign: "center",
-                  }}
-                >
-                  Loading 3D…
-                </div>
-              }
-            >
-              <ModelViewer height={"100%"} />
-            </Suspense>
-          ) : (
-            <div
-              style={{
-                width: "100%",
-                height: "260px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--color-text-secondary)",
-                background: "var(--color-bg-elevated)",
-                borderRadius: "var(--radius-lg)",
-              }}
-            >
-              3D preview available on desktop
-            </div>
-          )}
+          <div
+            style={{
+              width: "100%",
+              height: "260px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--color-text-secondary)",
+              background: "var(--color-bg-elevated)",
+              borderRadius: "var(--radius-lg)",
+            }}
+          >
+            3D preview coming soon
+          </div>
         </div>
 
         {/* Right: Products grid */}
