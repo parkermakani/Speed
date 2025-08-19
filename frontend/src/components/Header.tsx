@@ -1,4 +1,5 @@
 import React from "react";
+import logoUrl from "../assets/Graphics/SpeedDoesAmericaHQ.png";
 
 interface HeaderProps {
   /** Additional elements (e.g. nav buttons) rendered inside the header */
@@ -13,11 +14,7 @@ export const Header: React.FC<HeaderProps> = ({ children }) => {
   return (
     <header className="site-header">
       <h1 className="site-title">
-        <img
-          src="/src/assets/Graphics/SpeedDoesAmericaHQ.png"
-          alt="Speed Does America"
-          className="site-logo"
-        />
+        <img src={logoUrl} alt="Speed Does America" className="site-logo" />
       </h1>
       {children}
     </header>

@@ -1,4 +1,5 @@
 import React from "react";
+import pwLogo from "../assets/Graphics/PeopleWatchingLogoSmall.png";
 
 /**
  * Floating footer overlay without blur. Displays the logo centered.
@@ -7,7 +8,7 @@ export const Footer: React.FC = () => {
   return (
     <footer className="site-footer">
       <img
-        src="/src/assets/Graphics/PeopleWatchingLogoSmall.png"
+        src={pwLogo}
         alt="Speed Does America"
         className="footer-logo"
         style={{
