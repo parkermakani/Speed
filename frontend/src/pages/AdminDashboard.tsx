@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Stack, Text, Button, FormField, Card } from "../components/primitives";
 import { useAuth } from "../hooks/useAuth";
 import { fetchStatus, updateStatus, ApiError } from "../services/api";
@@ -26,13 +26,7 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string>("");
-  const [citySuggestions, setCitySuggestions] = useState<any[]>([]);
-  const [showCitySuggestions, setShowCitySuggestions] = useState(false);
-  const [selectedCityIndex, setSelectedCityIndex] = useState(-1);
-  const [debounceCityTimeout, setDebounceCityTimeout] = useState<number | null>(
-    null
-  );
-  const cityInputRef = useRef<HTMLInputElement>(null);
+  // City input removed – suggestions state deleted
 
   useEffect(() => {
     loadCurrentStatus();
@@ -148,170 +142,7 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
     }
   };
 
-  const handleCityInputChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, city: value }));
-
-    if (value.trim()) {
-      debouncedCitySearch(value);
-    } else {
-      setCitySuggestions([]);
-      setShowCitySuggestions(false);
-    }
-  };
-
-  // Fetch city suggestions from Mapbox Geocoding API
-  const searchCitySuggestions = async (query: string) => {
-    if (!query.trim()) {
-      setCitySuggestions([]);
-      setShowCitySuggestions(false);
-      return;
-    }
-
-    const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
-    if (!MAPBOX_TOKEN) return;
-
-    try {
-      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-        query.trim()
-      )}.json?types=place&limit=5&access_token=${MAPBOX_TOKEN}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.features && data.features.length > 0) {
-        setCitySuggestions(data.features);
-        setShowCitySuggestions(true);
-        setSelectedCityIndex(-1);
-      } else {
-        setCitySuggestions([]);
-        setShowCitySuggestions(false);
-      }
-    } catch (err) {
-      console.error("Failed to search cities", err);
-      setCitySuggestions([]);
-      setShowCitySuggestions(false);
-    }
-  };
-
-  const debouncedCitySearch = (query: string) => {
-    if (debounceCityTimeout) {
-      clearTimeout(debounceCityTimeout);
-    }
-
-    const timeout = setTimeout(() => {
-      searchCitySuggestions(query);
-    }, 300);
-
-    setDebounceCityTimeout(timeout);
-  };
-
-  const selectCitySuggestion = (suggestion: any) => {
-    setFormData((prev) => ({
-      ...prev,
-      city: suggestion.place_name || suggestion.text,
-    }));
-    setCitySuggestions([]);
-    setShowCitySuggestions(false);
-    setSelectedCityIndex(-1);
-    // remove lat/lng errors
-
-    // Keep focus on input after selection
-    setTimeout(() => {
-      cityInputRef.current?.focus();
-    }, 0);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showCitySuggestions || citySuggestions.length === 0) return;
-
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        setSelectedCityIndex((prev) =>
-          prev < citySuggestions.length - 1 ? prev + 1 : 0
-        );
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        setSelectedCityIndex((prev) =>
-          prev > 0 ? prev - 1 : citySuggestions.length - 1
-        );
-        break;
-      case "Enter":
-        e.preventDefault();
-        if (selectedCityIndex >= 0) {
-          selectCitySuggestion(citySuggestions[selectedCityIndex]);
-        }
-        break;
-      case "Escape":
-        setCitySuggestions([]);
-        setShowCitySuggestions(false);
-        setSelectedCityIndex(-1);
-        break;
-    }
-  };
-
-  // Fetch city polygon on blur
-  const handleCityBlur = async () => {
-    if (!formData.city) return;
-
-    const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
-    if (!MAPBOX_TOKEN) {
-      console.error("Mapbox token missing");
-      return;
-    }
-
-    try {
-      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-        formData.city
-      )}.json?types=place&limit=1&polygon_geojson=true&access_token=${MAPBOX_TOKEN}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.features && data.features.length > 0) {
-        const feature = data.features[0];
-
-        let geometry = feature.geometry;
-        const centerCoords =
-          feature.center || feature.geometry?.coordinates[0][0];
-        const [lngCenter, latCenter] = centerCoords;
-
-        // extract state name from context
-        const region = feature.context?.find((c: any) =>
-          c.id.startsWith("region")
-        );
-        const stateName = region?.text || "";
-
-        // If Mapbox didn't return a polygon, build one from bbox (paid boundaries absent)
-        if (
-          geometry.type !== "Polygon" &&
-          feature.bbox &&
-          Array.isArray(feature.bbox)
-        ) {
-          const [minLng, minLat, maxLng, maxLat] = feature.bbox;
-          geometry = {
-            type: "Polygon",
-            coordinates: [
-              [
-                [minLng, minLat],
-                [maxLng, minLat],
-                [maxLng, maxLat],
-                [minLng, maxLat],
-                [minLng, minLat],
-              ],
-            ],
-          } as any;
-        }
-
-        setFormData((prev) => ({
-          ...prev,
-          lat: latCenter,
-          lng: lngCenter,
-          state: stateName,
-          cityPolygon: JSON.stringify(geometry),
-        }));
-      }
-    } catch (error) {
-      console.error("Failed to fetch city polygon", error);
-    }
-  };
+  // removed city suggestion handlers
 
   return (
     <div
@@ -363,7 +194,10 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
           </Card>
         )}
 
-        <Card padding="sm" style={{ boxShadow: "none", display: "flex", alignSelf: "center" }}>
+        <Card
+          padding="sm"
+          style={{ boxShadow: "none", display: "flex", alignSelf: "center" }}
+        >
           <Stack
             direction="row"
             spacing="sm"
