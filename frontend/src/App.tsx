@@ -1,35 +1,45 @@
 import { useState, useEffect } from "react";
 import { FlatMap } from "./components/FlatMap";
 import { Header } from "./components/Header";
+import { Footer } from "./components/Footer";
 import { Quote } from "./components/Quote";
-import type { Status } from "./types";
-import { fetchStatus } from "./services/api";
+import type { Status, JourneyResponse } from "./types";
+import { fetchStatus, fetchJourney, fetchSleep } from "./services/api";
+import type { SleepResponse } from "./types";
 import "./App.css";
 
 function App() {
   const [status, setStatus] = useState<Status | null>(null);
+  const [journey, setJourney] = useState<JourneyResponse | null>(null);
+  const [sleep, setSleep] = useState<SleepResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadStatus = async () => {
+    const loadData = async () => {
       try {
-        const data = await fetchStatus();
-        setStatus(data);
+        const [statusRes, journeyRes, sleepRes] = await Promise.all([
+          fetchStatus(),
+          fetchJourney(),
+          fetchSleep(),
+        ]);
+        setStatus(statusRes);
+        setJourney(journeyRes);
+        setSleep(sleepRes);
       } catch (error) {
-        console.error("Failed to fetch status:", error);
+        console.error("Failed to load data:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    loadStatus();
+    loadData();
   }, []);
 
   if (loading) {
     return <div className="app loading">Loading...</div>;
   }
 
-  if (!status) {
+  if (!status || !journey || !sleep) {
     return <div className="app error">Failed to load map data</div>;
   }
 
@@ -52,9 +62,43 @@ function App() {
         <Quote quote={status.quote} />
       </div>
 
-      <div className="map-container">
-        <FlatMap lat={status.lat} lng={status.lng} state={status.state} />
-      </div>
+      {sleep.isSleep ? (
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "var(--color-surface)",
+            color: "var(--color-text-secondary)",
+          }}
+        >
+          <p>Map is sleeping – come back soon!</p>
+        </div>
+      ) : (
+        <div className="map-container">
+          <FlatMap
+            lat={journey.currentCity?.lat || status.lat}
+            lng={journey.currentCity?.lng || status.lng}
+            state={journey.currentCity?.state || status.state}
+            path={[
+              ...journey.path.map((p) => ({ lat: p.lat, lng: p.lng })),
+              ...(journey.currentCity
+                ? [
+                    {
+                      lat: journey.currentCity.lat,
+                      lng: journey.currentCity.lng,
+                    },
+                  ]
+                : []),
+            ]}
+            pastCities={journey.path.map((p) => ({ lat: p.lat, lng: p.lng }))}
+          />
+        </div>
+      )}
+
+      {/* Footer overlay */}
+      <Footer />
     </div>
   );
 }

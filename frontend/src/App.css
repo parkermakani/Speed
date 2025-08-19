@@ -33,28 +33,6 @@
   z-index: 1;
 }
 
-/* Pseudo-element applies blur and masks it so it fades out */
-.site-header::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  /* Fade the blur by masking top→bottom */
-  mask-image: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 1) 0%,
-    rgba(0, 0, 0, 0) 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 1) 0%,
-    rgba(0, 0, 0, 0) 100%
-  );
-  z-index: 0; /* ensure below logo/text */
-}
-
 /* Remove obsolete ::after gradient overlay */
 .site-header::after {
   content: none;
@@ -194,4 +172,22 @@
 .last-updated {
   color: var(--color-text-muted);
   font-size: var(--text-xs);
+}
+
+.site-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: transparent;
+  padding: var(--space-3) var(--space-6);
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.footer-logo {
+  height: clamp(30px, 8vw, 80px);
+  max-width: 100%;
+  object-fit: contain;
 }

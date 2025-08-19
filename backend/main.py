@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Query, APIRouter
+import asyncio
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session, select
+from sqlmodel import Session, select, SQLModel
 from datetime import datetime, timedelta
 from typing import Optional, List
 import httpx
@@ -11,12 +12,37 @@ from fastapi.staticfiles import StaticFiles
 # Load environment variables from .env file
 load_dotenv()
 
-from backend.models import Status, StatusCreate, StatusResponse
+from backend.models import (
+    Status, StatusCreate, StatusResponse,
+    City, CityCreate, CityUpdate, CityResponse, JourneyResponse, JourneyCity
+)
 from backend.database import create_db_and_tables, get_session
 from backend.auth import (
     LoginRequest, TokenResponse, create_access_token, 
     verify_admin_password, get_current_admin, JWT_EXPIRE_MINUTES
 )
+
+# -------------------- Helper: geocode city --------------------
+
+async def geocode_city(city: str, state: str | None = None) -> tuple[float, float] | None:
+    """Return (lat,lng) for a city using Google Geocoding API. Returns None on failure."""
+    api_key = os.getenv("GOOGLE_PLACES_API_KEY")
+    if not api_key:
+        return None
+    query = f"{city}, {state}" if state else city
+    url = "https://maps.googleapis.com/maps/api/geocode/json"
+    params = {"address": query, "key": api_key}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+            if data.get("results"):
+                loc = data["results"][0]["geometry"]["location"]
+                return loc["lat"], loc["lng"]
+    except Exception:
+        return None
+    return None
 
 
 app = FastAPI(title="Speed Live Map API", version="1.0.0")
@@ -35,7 +61,7 @@ app.add_middleware(
 
 
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
     """Initialize database on startup"""
     create_db_and_tables()
     
@@ -58,6 +84,8 @@ def on_startup():
             session.execute(text("ALTER TABLE status ADD COLUMN city TEXT"))
         if "city_polygon" not in columns:
             session.execute(text("ALTER TABLE status ADD COLUMN city_polygon TEXT"))
+        if "is_sleep" not in columns:
+            session.execute(text("ALTER TABLE status ADD COLUMN is_sleep BOOLEAN DEFAULT 0"))
 
         # Drop deprecated columns (SQLite ≥3.35 supports DROP COLUMN) – only radius now
         for deprecated in ["radius"]:
@@ -78,10 +106,96 @@ def on_startup():
                 quote="Welcome to Speed Live Map! 🗺️",
                 city=None,
                 city_polygon=None,
+                is_sleep=False,
                 last_updated=datetime.now(),
             )
             session.add(initial_status)
             session.commit()
+
+        # Ensure default journey cities exist (idempotent)
+        seed_cities = [
+            ("Miami", "Florida"),
+            ("Orlando", "Florida"),
+            ("Daytona", "Florida"),
+            ("Jacksonville", "Florida"),
+            ("Atlanta", "Georgia"),
+            ("Greenville", "South Carolina"),
+            ("Washington", "D.C."),
+            ("Philadelphia", "Pennsylvania"),
+            ("New York", "New York"),
+            ("Boston", "Massachusetts"),
+            ("Pittsburgh", "Pennsylvania"),
+            ("Detroit", "Michigan"),
+            ("Chicago", "Illinois"),
+            ("Cincinnati", "Ohio"),
+            ("Nashville", "Tennessee"),
+            ("Memphis", "Tennessee"),
+            ("New Orleans", "Louisiana"),
+            ("Baton Rouge", "Louisiana"),
+            ("Houston", "Texas"),
+            ("Austin", "Texas"),
+            ("Dallas", "Texas"),
+            ("Kansas City", "Missouri"),
+            ("Denver", "Colorado"),
+            ("Keystone", "South Dakota"),
+            ("Jackson Hole", "Wyoming"),
+            ("Boise", "Idaho"),
+            ("Seattle", "Washington"),
+            ("Portland", "Oregon"),
+            ("Medford", "Oregon"),
+            ("San Francisco", "California"),
+            ("Lake Tahoe", "California"),
+            ("Las Vegas", "Nevada"),
+            ("Phoenix", "Arizona"),
+            ("Los Angeles", "California"),
+        ]
+
+        existing = session.exec(select(City)).all()
+        existing_names = {(c.city, c.state) for c in existing}
+
+        # Insert missing cities and fix order numbering
+        for idx, (city_name, state_name) in enumerate(seed_cities, start=1):
+            if (city_name, state_name) not in existing_names:
+                session.add(
+                    City(
+                        city=city_name,
+                        state=state_name,
+                        lat=0.0,
+                        lng=0.0,
+                        order=idx,
+                        is_current=False,
+                    )
+                )
+            else:
+                # ensure correct order for existing record
+                rec = session.exec(
+                    select(City).where(City.city == city_name, City.state == state_name)
+                ).first()
+                if rec.order != idx:
+                    rec.order = idx
+                    session.add(rec)
+
+        # Ensure at least one current city
+        if not session.exec(select(City).where(City.is_current == True)).first():
+            first_city = session.exec(select(City).order_by(City.order)).first()
+            if first_city:
+                first_city.is_current = True
+                session.add(first_city)
+
+        session.commit()
+
+    # -------- Geocode any cities still at 0,0 --------
+    api_key = os.getenv("GOOGLE_PLACES_API_KEY")
+    if api_key:
+        missing = session.exec(select(City).where(City.lat == 0, City.lng == 0)).all()
+        async def geocode_and_update(c: City):
+            coords = await geocode_city(c.city, c.state)
+            if coords:
+                c.lat, c.lng = coords
+                session.add(c)
+
+        await asyncio.gather(*[geocode_and_update(c) for c in missing])
+        session.commit()
 
 
 @api.get("/status", response_model=StatusResponse)
@@ -248,6 +362,110 @@ async def health_check():
         "version": "1.0.0",
         "status": "running"
     }
+
+# -------------------- City & Journey Endpoints --------------------
+
+
+@api.get("/cities", response_model=list[CityResponse])
+async def list_cities(session: Session = Depends(get_session)):
+    cities = session.exec(select(City).order_by(City.order)).all()
+    return [CityResponse.from_city(c) for c in cities]
+
+
+@api.put("/cities/{city_id}", response_model=CityResponse)
+async def update_city(
+    city_id: int,
+    city_update: CityUpdate,
+    session: Session = Depends(get_session),
+    current_admin = Depends(get_current_admin),
+):
+    city = session.get(City, city_id)
+    if not city:
+        raise HTTPException(status_code=404, detail="City not found")
+
+    # If is_current toggled true, unset others
+    if city_update.is_current is True:
+        other_cities = session.exec(select(City).where(City.id != city_id, City.is_current == True)).all()
+        for other in other_cities:
+            other.is_current = False
+            session.add(other)
+
+    # Update provided fields
+    update_data = city_update.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(city, key, value)
+
+    session.add(city)
+    session.commit()
+
+    # If this city is now current, ensure coordinates & update Status
+    if city.is_current:
+        # Fetch coords if missing or zero
+        if (abs(city.lat) < 0.0001 and abs(city.lng) < 0.0001):
+            coords = await geocode_city(city.city, city.state)
+            if coords:
+                city.lat, city.lng = coords
+                session.add(city)
+                session.commit()
+
+        status_rec = session.exec(select(Status)).first()
+        if status_rec:
+            status_rec.city = city.city
+            status_rec.state = city.state
+            status_rec.lat = city.lat
+            status_rec.lng = city.lng
+            status_rec.last_updated = datetime.now()
+            session.add(status_rec)
+            session.commit()
+
+    session.refresh(city)
+    return CityResponse.from_city(city)
+
+
+@api.get("/journey", response_model=JourneyResponse)
+async def get_journey(session: Session = Depends(get_session)):
+    cities = session.exec(select(City).order_by(City.order)).all()
+    if not cities:
+        return JourneyResponse(currentCity=None, path=[])
+
+    current = next((c for c in cities if c.is_current), cities[-1])
+    path_cities = [c for c in cities if c.order < current.order]
+
+    def to_jc(c: City):
+        return JourneyCity(city=c.city, state=c.state, lat=c.lat, lng=c.lng)
+
+    return JourneyResponse(
+        currentCity=to_jc(current),
+        path=[to_jc(c) for c in path_cities],
+    )
+
+# -------------------- Sleep mode endpoints --------------------
+
+
+@api.get("/sleep")
+async def get_sleep(session: Session = Depends(get_session)):
+    status_rec = session.exec(select(Status)).first()
+    return {"isSleep": bool(status_rec.is_sleep) if status_rec else False}
+
+
+class SleepToggle(SQLModel):
+    isSleep: bool
+
+
+@api.put("/sleep")
+async def toggle_sleep(
+    payload: SleepToggle,
+    session: Session = Depends(get_session),
+    current_admin = Depends(get_current_admin),
+):
+    status_rec = session.exec(select(Status)).first()
+    if not status_rec:
+        raise HTTPException(status_code=404, detail="Status missing")
+    status_rec.is_sleep = payload.isSleep
+    session.add(status_rec)
+    session.commit()
+    return {"isSleep": status_rec.is_sleep}
+
 
 # --- Mount static files LAST so API routes take precedence ---
 app.include_router(api)

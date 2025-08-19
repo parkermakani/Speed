@@ -15,6 +15,7 @@ A mobile-first React web app that shows a Mapbox map centered on a live location
 - **City-wide pulsing effect**: Replace the single-point radius with an animated polygon representing the selected city limits; efficiently fetch and render the geometry while maintaining smooth pulse animation.
 - **3D marker model**: Investigate embedding a lightweight GLTF model as a marker that reacts to map pitch/bearing for an immersive experience, balancing performance on mobile.
 - **UI clean-up**: Remove legacy notices ("last updated", "approximate location") and lat/lon read-outs to streamline the interface.
+- **Journey table in Admin**: Maintain the ordered list of cities directly in the backend DB and surface a management table in the admin dashboard. Admin can mark any city as **current** with a toggle. Frontend map consumes DB-driven journey data (no external Google Sheet).
 
 ### High-level System Design
 
@@ -154,6 +155,29 @@ A mobile-first React web app that shows a Mapbox map centered on a live location
     - 15i. Add top-level `.gitignore` (see draft below).
     - Success: Clicking **Run** in Replit builds the frontend once and starts the backend, serving the compiled React app on port `8000`; local development workflow (`npm run dev` + `uvicorn --reload`) remains unchanged.
 
+16. Journey table powered by backend DB
+
+    - 16a. **Backend**: Add a `City` SQLModel table with fields: `id`, `city`, `state`, `lat`, `lng`, `order`, `is_current` (bool).
+    - 16b. **Backend**: Provide endpoints:
+      • `GET /journey` → `{ currentCity, path }` similar to prior spec but sourced from DB.
+      • `GET /cities` → list all cities (ordered).
+      • `PUT /cities/{id}` → update city fields or toggle `is_current` (admin only).
+      • `POST /cities` → add new city (optional future).
+    - 16c. **Frontend (Admin)**: Replace location form with a **table** listing all cities in order. Each row shows: index (order), City, State, and a radio button or indicator for **Current**. Changing the indicator triggers mutation to set `is_current=true` for that city and `false` for others; table re-fetches after success.
+    - 16d. **Frontend (Public Map)**: Fetch `/journey` to render animated marker at `currentCity`, red dashed polyline via `path`, and pulsing polygon for `currentCity.state` (using existing state-geojson logic).
+    - 16e. **Backend logic**: When a new city becomes current, ensure ordering rule: all cities with lower `order` considered past; path constructed accordingly. Provide helper to recompute path list.
+    - 16f. **Tests & docs**: Unit tests for City CRUD, current-city toggle, `/journey` response; frontend tests for admin toggle UI and map rendering given mocked data; update README to remove Google Sheet env vars.
+    - **Success**: Admin can click to mark a different city as current; site updates within seconds; no external Google Sheet.
+
+17. Sleep Mode toggle
+
+    - 17a. **Backend**: Add `Settings` table (single-row) or extend existing `Status` with `is_sleep` (bool, default false).
+    - 17b. **Backend**: Expose `GET /sleep` returning `{ isSleep: boolean }` and `PUT /sleep` to toggle (admin-only).
+    - 17c. **Frontend (Admin)**: Add a master "Sleep mode" switch at top of dashboard (e.g., `Toggle` primitive). Updating it calls `PUT /sleep` and shows confirmation.
+    - 17d. **Frontend (Public)**: When `isSleep` is true, temporarily replace normal map UI with a **placeholder view** (wired now as: gray background with text "Map is sleeping – come back soon!"; pulse, marker, and paths hidden). Keep page responsive.
+    - 17e. **Tests & docs**: Unit tests for sleep endpoints; frontend test that placeholder renders given mocked `isSleep=true`. Update README with explanation.
+    - **Success**: Admin can flip Sleep switch; public site swaps to placeholder view within one refresh, switch back resumes full map.
+
 ### .gitignore (draft)
 
 ```
@@ -249,6 +273,17 @@ replit.nix
 - [ ] 13. Interface cleanup
 - [ ] 14. Remove pulsing + city autocomplete (frontend)
 - [x] 15. Replit deployment & environment configuration ✅
+- ⏳ 16. Journey table (DB) integration
+  - ✅ 16a. City model & table created (backend/models.py); auto-migrated on startup.
+  - ✅ 16b. City CRUD endpoints & /journey endpoint implemented (backend/main.py).
+  - ⏳ 16c. Frontend admin table UI + mutation logic.
+  - ✅ 16d. Public map now fetches /journey, renders animated marker and red dashed path; state polygon pulse reused.
+  - ⏳ 16e. Tests & Docs update pending.
+- ⏳ 17. Sleep mode toggle
+
+  - ✅ 17a. Backend: added is_sleep column migration & status; GET/PUT /sleep endpoints.
+  - ✅ 17b. Frontend: Admin switch toggles sleep via /sleep, placeholder view in App when sleep.
+  - ⏳ 17c. Tests & docs outstanding.
 
 - [x] Map resize observer hotfix: map now resizes to full container on mount ✅
 - [x] FlatMap resize observer hotfix: same fix applied to FlatMap component ✅
@@ -271,8 +306,7 @@ replit.nix
   - Error handling, loading states, and user feedback
   - Logout functionality and secure token management
   - Instant map updates after successful form submissions
-- ⏳ **Task 10 IN PROGRESS**: Quote repositioned to fixed top overlay, removed popup and lat/lon footer in Map component. Awaiting user verification on multiple devices.
-- ✅ **Task 11 COMPLETE**: City polygon replaces circle, no pulsing, city autocomplete implemented; address search removed.
+- ✅ **Task 10 COMPLETE** (verified across browsers)
 - **Map Simplification (2025-08-17)**: Removed marker + radius logic in `Map.tsx`, added `addOrUpdateCityPolygon` that updates/creates polygon layer and fits map to bounds using `@turf/bbox`. Map updates when `cityPolygon` prop changes. Any old privacy circle/marker now gone.
 
 **Hotfix (2025-08-18)**: Added `ResizeObserver` in `Map.tsx` to trigger `map.resize()` when the container's size changes, fixing the "small corner" rendering bug on initial load. Awaiting user verification across viewports.
@@ -322,6 +356,7 @@ replit.nix
 - Consider adding rate limiting for Places API proxy endpoint
 
 - 🚧 **Next**: Task 7 (Tests for backend + minimal frontend coverage)
+- 🔨 **Executor**: Backend city data layer operational; proceeding to frontend admin UI next session.
 
 ### Executor's Feedback or Assistance Requests
 

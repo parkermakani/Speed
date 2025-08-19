@@ -9,6 +9,8 @@ interface FlatMapProps {
   lat: number;
   lng: number;
   state?: string | null;
+  path?: { lat: number; lng: number }[];
+  pastCities?: { lat: number; lng: number }[];
 }
 
 // Mapbox token
@@ -35,10 +37,17 @@ const ensureStates = async () => {
   return statesGeo;
 };
 
-export function FlatMap({ lat, lng, state }: FlatMapProps) {
+export function FlatMap({
+  lat,
+  lng,
+  state,
+  path = [],
+  pastCities = [],
+}: FlatMapProps) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
+  const pastMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const [loading, setLoading] = useState(true);
 
   const addStateLayers = async (stateName: string) => {
@@ -78,12 +87,14 @@ export function FlatMap({ lat, lng, state }: FlatMapProps) {
       // pulse
       let up = true;
       setInterval(() => {
-        mapRef.current?.setPaintProperty(
-          highlightId,
-          "fill-opacity",
-          up ? 0.35 : 0.15
-        );
-        up = !up;
+        if (mapRef.current?.getLayer(highlightId)) {
+          mapRef.current.setPaintProperty(
+            highlightId,
+            "fill-opacity",
+            up ? 0.35 : 0.15
+          );
+          up = !up;
+        }
       }, 1000);
     } else {
       mapRef.current.setFilter(highlightId, stateFilter as any);
@@ -147,6 +158,86 @@ export function FlatMap({ lat, lng, state }: FlatMapProps) {
     }
   };
 
+  const drawPath = () => {
+    const map = mapRef.current;
+    if (!map || path.length < 2) return;
+
+    // Ensure style is loaded
+    if (!map.isStyleLoaded()) {
+      map.once("styledata", drawPath);
+      return;
+    }
+
+    const lineId = "journey-path";
+    const sourceId = "journey-src";
+
+    const coordinates = path
+      .map((p) => [p.lng, p.lat])
+      .filter((c) => !isNaN(c[0]) && !isNaN(c[1]));
+
+    if (coordinates.length < 2) return;
+
+    const geojson = {
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates,
+      },
+    } as const;
+
+    if (!map.getSource(sourceId)) {
+      map.addSource(sourceId, { type: "geojson", data: geojson as any });
+    } else {
+      (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(
+        geojson as any
+      );
+    }
+
+    if (!map.getLayer(lineId)) {
+      map.addLayer({
+        id: lineId,
+        type: "line",
+        source: sourceId,
+        paint: {
+          "line-color": getCSSVariable("--color-primary") || "#B31942",
+          "line-width": 4,
+          "line-dasharray": [2, 1],
+        },
+      });
+    }
+  };
+
+  // --------------- Past city markers ---------------
+  const allIcons: string[] = Object.values(
+    import.meta.glob("../assets/LocIcons/*.png", {
+      eager: true,
+      import: "default",
+      query: "?url",
+    })
+  ) as string[];
+
+  const renderPastMarkers = () => {
+    const map = mapRef.current;
+    if (!map || pastCities.length === 0) return;
+
+    // Clear existing markers
+    pastMarkersRef.current.forEach((m) => m.remove());
+    pastMarkersRef.current = [];
+
+    pastCities.forEach((pt) => {
+      const img = document.createElement("img");
+      img.src = allIcons[Math.floor(Math.random() * allIcons.length)];
+      img.style.width = "60px";
+      img.style.height = "60px";
+      const mk = new mapboxgl.Marker({ element: img, anchor: "center" })
+        .setLngLat([pt.lng, pt.lat])
+        .addTo(map);
+      pastMarkersRef.current.push(mk);
+    });
+  };
+
+  // scaling removed – icons fixed size
+
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -180,6 +271,8 @@ export function FlatMap({ lat, lng, state }: FlatMapProps) {
       // draw USA polygons and highlight state
       addStateLayers(state || "");
       addMarker();
+      drawPath();
+      renderPastMarkers();
       mapRef.current!.once("idle", () => setLoading(false));
     });
 
@@ -206,7 +299,9 @@ export function FlatMap({ lat, lng, state }: FlatMapProps) {
     if (!mapRef.current) return;
     addMarker();
     addStateLayers(state || "");
-  }, [lat, lng, state]);
+    drawPath();
+    renderPastMarkers();
+  }, [lat, lng, state, path, pastCities]);
 
   if (!MAPBOX_TOKEN || MAPBOX_TOKEN.includes("your-")) {
     return (

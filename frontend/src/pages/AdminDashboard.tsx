@@ -1,14 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  Stack,
-  Text,
-  Button,
-  Input,
-  FormField,
-  Card,
-} from "../components/primitives";
+import { Stack, Text, Button, FormField, Card } from "../components/primitives";
 import { useAuth } from "../hooks/useAuth";
 import { fetchStatus, updateStatus, ApiError } from "../services/api";
+import { fetchSleep, toggleSleep } from "../services/api";
+import { CityTable } from "../components/CityTable";
 import type { Status, StatusUpdate } from "../types";
 
 interface AdminDashboardProps {
@@ -18,6 +13,7 @@ interface AdminDashboardProps {
 export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
   const { logout, token } = useAuth();
   const [currentStatus, setCurrentStatus] = useState<Status | null>(null);
+  const [isSleep, setIsSleep] = useState(false);
   const [formData, setFormData] = useState<StatusUpdate>({
     lat: 0,
     lng: 0,
@@ -40,7 +36,30 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
 
   useEffect(() => {
     loadCurrentStatus();
+    loadSleep();
   }, []);
+
+  const loadSleep = async () => {
+    try {
+      const data = await fetchSleep();
+      setIsSleep(data.isSleep);
+    } catch (e) {
+      console.error("Failed to fetch sleep", e);
+    }
+  };
+
+  const handleSleepToggle = async () => {
+    if (!token) return;
+    const newVal = !isSleep;
+    setIsSleep(newVal);
+    try {
+      await toggleSleep(newVal, token);
+    } catch (e) {
+      console.error("Failed to toggle sleep", e);
+      // revert UI
+      setIsSleep(!newVal);
+    }
+  };
 
   const loadCurrentStatus = async () => {
     try {
@@ -322,7 +341,7 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
 
         {/* Current Status */}
         {currentStatus && (
-          <Card padding="md">
+          <Card padding="md" style={{ boxShadow: "none" }}>
             <Stack spacing="sm">
               <Text size="lg" weight="medium">
                 Current Status
@@ -344,6 +363,31 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
           </Card>
         )}
 
+        <Card padding="sm" style={{ boxShadow: "none", display: "flex", alignSelf: "center" }}>
+          <Stack
+            direction="row"
+            spacing="sm"
+            align="center"
+            justify="center"
+            style={{
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-md)",
+              padding: "var(--space-2)",
+            }}
+          >
+            <label htmlFor="sleep-switch">Sleep Mode</label>
+            <input
+              id="sleep-switch"
+              type="checkbox"
+              checked={isSleep}
+              onChange={handleSleepToggle}
+            />
+          </Stack>
+        </Card>
+
+        {/* Journey Cities Table */}
+        <CityTable onChange={loadCurrentStatus} />
+
         {/* Update Form */}
         <Card padding="lg">
           <form onSubmit={handleSubmit}>
@@ -364,74 +408,7 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
                 </Card>
               )}
 
-              {/* City Field */}
-              <div style={{ position: "relative" }}>
-                <FormField label="City" error={errors.city} required>
-                  <Input
-                    ref={cityInputRef}
-                    type="text"
-                    value={formData.city || ""}
-                    onChange={(e) => handleCityInputChange(e.target.value)}
-                    onBlur={handleCityBlur}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Enter city name"
-                    disabled={loading}
-                    fullWidth
-                  />
-                </FormField>
-
-                {showCitySuggestions && citySuggestions.length > 0 && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 0,
-                      right: 0,
-                      background: "var(--color-bg-elevated)",
-                      border: "1px solid var(--color-border)",
-                      borderTop: "none",
-                      zIndex: 10,
-                      maxHeight: "200px",
-                      overflowY: "auto",
-                    }}
-                  >
-                    {citySuggestions.map((sugg, index) => (
-                      <div
-                        key={sugg.id || index}
-                        tabIndex={0}
-                        onClick={() => selectCitySuggestion(sugg)}
-                        style={{
-                          padding: "var(--space-3)",
-                          cursor: "pointer",
-                          backgroundColor:
-                            index === selectedCityIndex
-                              ? "var(--color-surface-hover)"
-                              : "transparent",
-                          borderBottom:
-                            index < citySuggestions.length - 1
-                              ? "1px solid var(--color-border)"
-                              : "none",
-                        }}
-                        onMouseEnter={() => setSelectedCityIndex(index)}
-                      >
-                        <div
-                          style={{ fontWeight: "var(--font-weight-medium)" }}
-                        >
-                          {sugg.place_name || sugg.text}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "var(--text-xs)",
-                            color: "var(--color-text-secondary)",
-                            marginTop: "var(--space-1)",
-                          }}
-                        >
-                          {sugg.place_name || sugg.text}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {/* City Field removed – managed via Journey Table */}
 
               {/* Lat/Lng fields removed – no longer used */}
 
