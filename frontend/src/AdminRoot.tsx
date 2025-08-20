@@ -1,8 +1,6 @@
-import React from "react";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { AdminLogin } from "./pages/AdminLogin";
 import { AdminDashboard } from "./pages/AdminDashboard";
-import { Button } from "./components/primitives";
 
 function Inner() {
   const { isAuthenticated, loading } = useAuth();

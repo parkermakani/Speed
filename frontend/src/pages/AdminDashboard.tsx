@@ -30,7 +30,7 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [scrapeMsg, setScrapeMsg] = useState<string>("");
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const [_settings, setSettings] = useState<Settings | null>(null);
   const [settingsForm, setSettingsForm] = useState<Settings>({
     socialScrapeIntervalMin: 60,
     instagramUsername: "",
