@@ -75,10 +75,16 @@ app = FastAPI(title="Speed Live Map API", version="1.0.0")
 # API router with /api prefix
 api = APIRouter(prefix="/api")
 
+origins = [
+    "http://localhost:5173",
+    "https://speeddoesamerica.com",
+    "https://speeddoesamerica.replit.app",
+]
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

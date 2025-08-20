@@ -20,6 +20,8 @@ export const CityTable: React.FC<CityTableProps> = ({ onChange }) => {
   const [error, setError] = useState("");
   const { token } = useAuth();
 
+  const HIDE = import.meta.env.VITE_HIDE_CITIES === "true";
+
   // dialog state
   const [editingCity, setEditingCity] = useState<City | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -123,12 +125,10 @@ export const CityTable: React.FC<CityTableProps> = ({ onChange }) => {
                     style={{ borderTop: "1px solid var(--color-border)" }}
                   >
                     <td style={{ padding: "4px" }}>
-                      {import.meta.env.VITE_SHUFFLE_CITIES === "true"
-                        ? idx + 1
-                        : c.order}
+                      {HIDE ? idx + 1 : c.order}
                     </td>
-                    <td style={{ padding: "4px" }}>{c.city}</td>
-                    <td style={{ padding: "4px" }}>{c.state}</td>
+                    <td style={{ padding: "4px" }}>{HIDE ? "—" : c.city}</td>
+                    <td style={{ padding: "4px" }}>{HIDE ? "—" : c.state}</td>
                     <td
                       style={{
                         padding: "4px",

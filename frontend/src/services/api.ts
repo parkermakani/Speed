@@ -4,7 +4,7 @@ import type { City, JourneyResponse, SleepResponse, Settings } from "../types";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || window.location.origin;
 
-const SHUFFLE = (import.meta.env.VITE_SHUFFLE_CITIES ?? "false") === "true";
+const HIDE = (import.meta.env.VITE_HIDE_CITIES ?? "false") === "true";
 
 async function fetchAllCitiesRaw(): Promise<City[]> {
   const response = await fetch(`${API_BASE_URL}/api/cities`);
@@ -32,11 +32,17 @@ export async function fetchStatus(): Promise<Status> {
 
   const data = await response.json();
 
-  return {
+  const res: Status = {
     ...data,
     cityPolygon: data.cityPolygon ?? data.city_polygon ?? null,
     state: data.state ?? data.state,
   } as Status;
+
+  if (HIDE) {
+    res.city = null;
+  }
+
+  return res;
 }
 
 export async function updateStatus(
@@ -83,7 +89,7 @@ export async function fetchCities(): Promise<City[]> {
     throw new ApiError(response.status, "Failed to fetch cities");
   }
   const data: City[] = await response.json();
-  return SHUFFLE ? shuffleArray(data) : data;
+  return data;
 }
 
 export async function toggleCurrentCity(
@@ -131,28 +137,6 @@ export async function fetchJourney(): Promise<JourneyResponse> {
     throw new ApiError(res.status, "Failed to fetch journey");
   }
   const data: JourneyResponse = await res.json();
-  if (SHUFFLE) {
-    try {
-      const all = await fetchAllCitiesRaw();
-      // Exclude current city if present in list
-      const others = all.filter(
-        (c) =>
-          !(
-            data.currentCity &&
-            c.city === data.currentCity.city &&
-            c.state === data.currentCity.state
-          )
-      );
-      const shuffled = shuffleArray(others);
-      const take = Math.floor(Math.random() * (shuffled.length + 1));
-      const subset = shuffled
-        .slice(0, take)
-        .map((c) => ({ city: c.city, state: c.state, lat: c.lat, lng: c.lng }));
-      data.path = subset;
-    } catch (e) {
-      // fallback to previous behavior if cities fetch fails
-    }
-  }
   return data;
 }
 

@@ -26,6 +26,8 @@ if (!MAPBOX_TOKEN || MAPBOX_TOKEN.includes("your-")) {
 
 mapboxgl.accessToken = MAPBOX_TOKEN || "";
 
+const HIDE = (import.meta.env.VITE_HIDE_CITIES ?? "false") === "true";
+
 // Helper function to get CSS variable values
 const getCSSVariable = (varName: string): string => {
   return getComputedStyle(document.documentElement)
@@ -76,11 +78,13 @@ export function Map({ lat, lng, state }: MapProps) {
     map.current.on("load", () => {
       mapLoaded.current = true;
 
-      if (state) {
+      if (!HIDE && state) {
         addStateLayer(state);
       }
 
-      add3DMarker();
+      if (!HIDE) {
+        add3DMarker();
+      }
     });
 
     // 🆕 Ensure map resizes once the container has its final size
@@ -110,7 +114,7 @@ export function Map({ lat, lng, state }: MapProps) {
       map.current.setCenter([lng, lat]);
     }
 
-    if (state) {
+    if (!HIDE && state) {
       addStateLayer(state);
     }
   }, [state, lat, lng]);

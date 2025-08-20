@@ -28,6 +28,8 @@ if (!MAPBOX_TOKEN || MAPBOX_TOKEN.includes("your-")) {
 }
 mapboxgl.accessToken = MAPBOX_TOKEN || "";
 
+const HIDE = import.meta.env.VITE_HIDE_CITIES === "true";
+
 // Helper to read CSS variable
 const getCSSVariable = (name: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -315,11 +317,13 @@ export function FlatMap({
       mapRef.current!.fitBounds(usaBounds as any, { padding: 60, duration: 0 });
       // Keep previous minZoom (2.0) so user can zoom out a bit
 
-      // draw USA polygons and highlight state
-      addStateLayers(state || "");
-      addMarker();
-      drawPath();
-      renderPastMarkers();
+      if (!HIDE) {
+        // draw USA polygons and highlight state only when not hiding
+        addStateLayers(state || "");
+        addMarker();
+        drawPath();
+        renderPastMarkers();
+      }
       mapRef.current!.once("idle", () => setLoading(false));
     });
 
@@ -347,6 +351,7 @@ export function FlatMap({
   // Update on prop changes
   useEffect(() => {
     if (!mapRef.current) return;
+    if (HIDE) return;
     addMarker();
     addStateLayers(state || "");
     drawPath();
