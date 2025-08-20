@@ -6,10 +6,10 @@ pip install -r backend/requirements.txt
 
 # --- Frontend ---
 cd frontend
-npm install --legacy-peer-deps --no-progress --silent
+npm install --legacy-peer-deps
 npm run build
 cd ..
 
 # --- Run FastAPI Server ---
-export ENV=production
-uvicorn backend.main:app --host 0.0.0.0 --port 8000
+UVICORN_PORT=${PORT:-8000}
+exec uvicorn backend.main:app --host 0.0.0.0 --port "$UVICORN_PORT"
