@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
-# --- Backend ---
-pip install -r backend/requirements.txt
-
-# --- Frontend ---
-cd frontend
-npm install --legacy-peer-deps
-npm run build
-cd ..
-
-# --- Run FastAPI Server ---
+# Ensure production env flag
 export ENV=production
-uvicorn backend.main:app --host 0.0.0.0 --port 8000
+
+# Use Replit provided port if available
+PORT=${PORT:-8000}
+echo "Starting Uvicorn on port $PORT"
+exec uvicorn backend.main:app --host 0.0.0.0 --port "$PORT"
