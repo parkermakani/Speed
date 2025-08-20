@@ -528,18 +528,29 @@ async def manual_scrape(city_id: int, current_admin=Depends(get_current_admin)):
     return {"saved": len(posts)}
 
 
-# -------------------- Static Files in Production --------------------
+# -------------------- Static Files (SPA fallback) --------------------
+# Mount the compiled frontend (if present) AFTER registering API routes so /api/* takes precedence.
 
-if os.getenv("ENV") == "production":
-    frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
-    if os.path.isdir(frontend_dist):
-        app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
+frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 
-        index_path = os.path.join(frontend_dist, "index.html")
+if os.path.isdir(frontend_dist):
+    # Register API router first so it matches /api/* before static routes
+    app.include_router(api)
 
-        @app.get("/admin", include_in_schema=False)
-        async def serve_admin():
-            return FileResponse(index_path)
+    # Mount static files with HTML fallback so any unknown path returns index.html
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
+
+    # Explicit admin path still returns index.html (optional, but harmless)
+    index_path = os.path.join(frontend_dist, "index.html")
+
+    @app.get("/admin", include_in_schema=False)
+    async def serve_admin():
+        return FileResponse(index_path)
+
+else:
+    # If dist folder missing (dev), just include API router normally
+    app.include_router(api)
+# --------------------------------------------------------------------
 
 # -------------------- Settings endpoints --------------------
 
