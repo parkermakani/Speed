@@ -547,6 +547,14 @@ if os.path.isdir(frontend_dist):
     async def serve_admin():
         return FileResponse(index_path)
 
+    # Catch-all fallback for client-side routes so refreshing on /anything works
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        # Let API routes 404 naturally
+        if full_path.startswith("api"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        return FileResponse(index_path)
+
 else:
     # If dist folder missing (dev), just include API router normally
     app.include_router(api)
