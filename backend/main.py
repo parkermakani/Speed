@@ -529,35 +529,26 @@ async def manual_scrape(city_id: int, current_admin=Depends(get_current_admin)):
 
 
 # -------------------- Static Files (SPA fallback) --------------------
-# Mount the compiled frontend (if present) AFTER registering API routes so /api/* takes precedence.
+# Register API router FIRST (at /api/*) so it has priority.
 
+app.include_router(api)
+
+# Attempt to serve compiled frontend if it exists. This works both locally and on Replit
 frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 
 if os.path.isdir(frontend_dist):
-    # Register API router first so it matches /api/* before static routes
-    app.include_router(api)
-
-    # Mount static files with HTML fallback so any unknown path returns index.html
+    # Mount under root with HTML fallback – Starlette will serve index.html automatically
     app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
 
-    # Explicit admin path still returns index.html (optional, but harmless)
+    # Extra catch-all in case Starlette’s html=True ever returns 404 (e.g., unusual Accept header)
     index_path = os.path.join(frontend_dist, "index.html")
 
-    @app.get("/admin", include_in_schema=False)
-    async def serve_admin():
+    @app.exception_handler(404)
+    async def spa_404_handler(request, exc):
+        # If the path starts with /api return normal 404
+        if request.url.path.startswith("/api"):
+            return exc  # default JSON 404 response
         return FileResponse(index_path)
-
-    # Catch-all fallback for client-side routes so refreshing on /anything works
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def spa_fallback(full_path: str):
-        # Let API routes 404 naturally
-        if full_path.startswith("api"):
-            raise HTTPException(status_code=404, detail="Not Found")
-        return FileResponse(index_path)
-
-else:
-    # If dist folder missing (dev), just include API router normally
-    app.include_router(api)
 # --------------------------------------------------------------------
 
 # -------------------- Settings endpoints --------------------

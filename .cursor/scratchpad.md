@@ -368,8 +368,7 @@ replit.nix
 |- [in_progress] 20g. Security Rules – write Firestore and Storage rules.
 |- [in_progress] 20h. Testing & CI – add unit tests mocking Firebase Admin SDK, Vitest tests for auth flow, CI to spin up emulators.
 |- [ ] 21. City marker popup overlay (frontend)
-
-- Verified in dev: viewer displays and orbits; test suite passes via `npm run test`.
+|- [ ] 22. Social media scraping – Apify debug - 22a. Verify `APIFY_TOKEN` env variable is present in deployment & local `.env`; log Apify client initialisation status. - 22b. Confirm `instagramUsername` / `twitterUsername` fields exist in Firestore `settings/globals`; scheduler should pass them to scraper; add unit test for settings retrieval. - 22c. Add verbose logging to `backend/social_scraper.py` (\_run_actor, search functions) to output run input payload and dataset item counts. - 22d. Create CLI/debug script (or pytest) that invokes `scrape_city_posts` for a known city and prints number of posts; iterate on query formatting (remove leading `@` if needed, adjust keywords) until >0 results. - 22e. Ensure `filter_since` correctly parses `lastCurrentAt`; write unit test with sample ISO strings. - Success: Running `scrape_current_city_job` for a city with recent posts saves ≥1 post document to `cities/{id}/posts`; logs show non-zero items fetched from Apify IG/TikTok actors.
 
 ### Current Status / Progress Tracking
 
