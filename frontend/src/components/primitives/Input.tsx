@@ -59,6 +59,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const baseStyles: React.CSSProperties = {
       display: "block",
       width: fullWidth ? "100%" : "auto",
+      boxSizing: "border-box",
       fontFamily: "var(--font-sans)",
       backgroundColor: disabled
         ? "var(--color-surface)"

@@ -10,6 +10,9 @@ import "./App.css";
 import { Drawer } from "./components/primitives/Drawer";
 import { ShopTab } from "./components/ShopTab";
 import { Merch } from "./components/Merch";
+import { Button } from "./components/primitives";
+
+const SHOW_ADMIN_BTN = true;
 
 function App() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -49,6 +52,27 @@ function App() {
 
   return (
     <div className="app">
+      {/* optional admin nav button */}
+      {SHOW_ADMIN_BTN && (
+        <div
+          style={{
+            position: "fixed",
+            top: "var(--space-4)",
+            right: "var(--space-4)",
+            zIndex: 100,
+          }}
+        >
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              window.location.href = "/admin";
+            }}
+          >
+            Admin
+          </Button>
+        </div>
+      )}
       {/* Overlay stack: header + quote */}
       <div
         style={{

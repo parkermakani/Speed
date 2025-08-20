@@ -366,15 +366,23 @@ export function FlatMap({
       }
 
       const container = document.createElement("div");
+
+      // Decide anchor based on point pixel position
+      const point = map.project([selectedCity.lng, selectedCity.lat]);
+      const mapHeight = map.getContainer().clientHeight;
+      const isTopHalf = point.y < mapHeight / 2;
+      const anchor: mapboxgl.Anchor = isTopHalf ? "top" : "bottom";
+      const arrowDir = isTopHalf ? "up" : "down";
+
       ReactDOM.createRoot(container).render(
         <CityPopup
           city={selectedCity}
           onClose={() => setSelectedCity(null)}
           showArrow
+          arrowDirection={arrowDir as any}
         />
       );
 
-      // Close when clicking elsewhere on the map
       const handleMapClick = () => setSelectedCity(null);
       map.on("click", handleMapClick);
 
@@ -382,6 +390,7 @@ export function FlatMap({
         closeButton: false,
         offset: 15,
         className: "city-popup",
+        anchor,
       })
         .setLngLat([selectedCity.lng, selectedCity.lat])
         .setDOMContent(container)

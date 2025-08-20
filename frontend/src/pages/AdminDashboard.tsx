@@ -3,9 +3,13 @@ import { Stack, Text, Button, FormField, Card } from "../components/primitives";
 import { useAuth } from "../hooks/useAuth";
 import { fetchStatus, updateStatus, ApiError } from "../services/api";
 import { fetchSleep, toggleSleep } from "../services/api";
+import { fetchCities, runScrape } from "../services/api";
 import { CityTable } from "../components/CityTable";
 import { AdminMerch } from "../components/AdminMerch";
 import type { Status, StatusUpdate } from "../types";
+import { fetchSettings, updateSettings } from "../services/api";
+import { Input } from "../components/primitives/Input";
+import type { Settings } from "../types";
 
 interface AdminDashboardProps {
   onStatusUpdate?: (status: Status) => void;
@@ -25,6 +29,15 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [scrapeMsg, setScrapeMsg] = useState<string>("");
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [settingsForm, setSettingsForm] = useState<Settings>({
+    socialScrapeIntervalMin: 60,
+    instagramUsername: "",
+    twitterUsername: "",
+    twitchUsername: "",
+    youtubeUsername: "",
+  });
   const [submitError, setSubmitError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string>("");
   // City input removed – suggestions state deleted
@@ -32,7 +45,18 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
   useEffect(() => {
     loadCurrentStatus();
     loadSleep();
+    loadSettingsFromServer();
   }, []);
+
+  const loadSettingsFromServer = async () => {
+    try {
+      const s = await fetchSettings();
+      setSettings(s);
+      setSettingsForm(s);
+    } catch (e) {
+      console.error("Failed to fetch settings", e);
+    }
+  };
 
   const loadSleep = async () => {
     try {
@@ -53,6 +77,34 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
       console.error("Failed to toggle sleep", e);
       // revert UI
       setIsSleep(!newVal);
+    }
+  };
+
+  const handleManualScrape = async () => {
+    if (!token) return;
+    setScrapeMsg("Running scrape...");
+    try {
+      const cities = await fetchCities();
+      const current = cities.find((c) => c.is_current);
+      if (!current) {
+        setScrapeMsg("No current city set.");
+        return;
+      }
+      const saved = await runScrape(current.id, token);
+      setScrapeMsg(`Fetched ${saved} posts.`);
+    } catch (e) {
+      setScrapeMsg("Scrape failed");
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    if (!token) return;
+    try {
+      const updated = await updateSettings(settingsForm, token);
+      setSettings(updated);
+      alert("Settings updated");
+    } catch (e) {
+      alert("Failed to update settings");
     }
   };
 
@@ -197,7 +249,16 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
 
         <Card
           padding="sm"
-          style={{ boxShadow: "none", display: "flex", alignSelf: "center" }}
+          style={{
+            boxShadow: "none",
+            display: "flex",
+            alignSelf: "center",
+            width: "100%",
+            maxWidth: "600px",
+            flexDirection: "row",
+            justifyContent: "space-around",
+            alignItems: "center",
+          }}
         >
           <Stack
             direction="row"
@@ -218,6 +279,20 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
               onChange={handleSleepToggle}
             />
           </Stack>
+
+          {/* Manual scrape button */}
+          <Button
+            variant="secondary"
+            onClick={handleManualScrape}
+            disabled={!token || loading}
+          >
+            Fetch Posts Now
+          </Button>
+          {scrapeMsg && (
+            <Text size="xs" color="secondary">
+              {scrapeMsg}
+            </Text>
+          )}
         </Card>
 
         {/* Journey Cities Table */}
@@ -225,6 +300,82 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
 
         {/* Merch Management */}
         <AdminMerch />
+
+        {/* Settings */}
+        <Card
+          padding="lg"
+          style={{ width: "100%", maxWidth: "600px", alignSelf: "center" }}
+        >
+          <Stack spacing="lg">
+            <Text size="lg" weight="medium">
+              Social Settings
+            </Text>
+            <FormField label="Scrape Interval (minutes)">
+              <Input
+                type="number"
+                value={settingsForm.socialScrapeIntervalMin}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    socialScrapeIntervalMin: Number(e.target.value),
+                  }))
+                }
+              />
+            </FormField>
+            <FormField label="Instagram Username">
+              <Input
+                value={settingsForm.instagramUsername}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    instagramUsername: e.target.value,
+                  }))
+                }
+              />
+            </FormField>
+            <FormField label="Twitter Username">
+              <Input
+                value={settingsForm.twitterUsername}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    twitterUsername: e.target.value,
+                  }))
+                }
+              />
+            </FormField>
+            <FormField label="Twitch Username">
+              <Input
+                value={settingsForm.twitchUsername}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    twitchUsername: e.target.value,
+                  }))
+                }
+              />
+            </FormField>
+
+            <FormField label="YouTube Username">
+              <Input
+                value={settingsForm.youtubeUsername}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    youtubeUsername: e.target.value,
+                  }))
+                }
+              />
+            </FormField>
+            <Button
+              variant="primary"
+              onClick={handleSaveSettings}
+              disabled={!token}
+            >
+              Save Settings
+            </Button>
+          </Stack>
+        </Card>
 
         {/* Update Form */}
         <Card padding="lg">

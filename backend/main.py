@@ -23,6 +23,9 @@ from backend import firestore_repo as repo
 from backend.database import create_db_and_tables, get_session
 from backend.auth import get_current_admin
 
+from backend.scheduler import start_scheduler
+from backend.scheduler import reload_settings
+
 # -------------------- Merch Endpoints --------------------
 
 
@@ -118,6 +121,23 @@ async def on_startup():
                     # Older SQLite versions don’t support DROP COLUMN; leave the column but ignore.
                     pass
         session.commit()
+
+        # ---- Ensure city table has new columns BEFORE we query City ----
+        city_columns = [c["name"] for c in inspector.get_columns("city")]
+
+        def add_city_column(col_name: str, sql_type: str):
+            if col_name not in city_columns:
+                try:
+                    session.execute(text(f"ALTER TABLE city ADD COLUMN {col_name} {sql_type}"))
+                    session.commit()
+                    city_columns.append(col_name)
+                except Exception:
+                    pass
+
+        add_city_column("last_current_at", "TIMESTAMP")
+        add_city_column("keywords", "TEXT")
+
+        # Refresh inspector after potential alters (only needed for later debug)
 
         existing_status = session.exec(select(Status)).first()
         if not existing_status:
@@ -218,6 +238,25 @@ async def on_startup():
 
         await asyncio.gather(*[geocode_and_update(c) for c in missing])
         session.commit()
+
+        # ---- Ensure city table has new columns before querying ----
+        city_columns = [c["name"] for c in inspector.get_columns("city")]
+        def add_column_if_missing(col_name: str, sql_type: str):
+            if col_name not in city_columns:
+                try:
+                    session.execute(text(f"ALTER TABLE city ADD COLUMN {col_name} {sql_type}"))
+                    session.commit()
+                except Exception:
+                    pass
+
+        add_column_if_missing("last_current_at", "TIMESTAMP")
+        add_column_if_missing("keywords", "TEXT")
+
+        # refresh column list after potential migration
+        existing = session.exec(select(City)).all()
+
+    # Start background scheduler (social media scraping)
+    start_scheduler()
 
 
 @api.get("/status", response_model=dict)
@@ -351,11 +390,15 @@ async def update_city(
     data = city_update.dict(exclude_unset=True)
 
     # If is_current set true, ensure we unset others in Firestore
+    now_iso = datetime.utcnow().isoformat()
     if data.get("is_current") is True:
         cities = repo.list_cities()
         for c in cities:
             if c["id"] != city_id and c.get("isCurrent"):
                 repo.update_city(c["id"], {"isCurrent": False})
+
+        # Add timestamp for the newly current city
+        data["last_current_at"] = now_iso
 
     payload = {
         "city": data.get("city"),
@@ -364,6 +407,8 @@ async def update_city(
         "lng": data.get("lng"),
         "order": data.get("order"),
         "isCurrent": data.get("is_current"),
+        "lastCurrentAt": data.get("last_current_at"),
+        "keywords": data.get("keywords"),
     }
     payload = {k: v for k, v in payload.items() if v is not None}
 
@@ -377,6 +422,8 @@ async def update_city(
         "lng": updated_doc.get("lng", 0.0),
         "order": updated_doc.get("order", 0),
         "is_current": updated_doc.get("isCurrent", False),
+        "lastCurrentAt": updated_doc.get("lastCurrentAt"),
+        "keywords": updated_doc.get("keywords"),
     }
 
     # If now current, also patch status doc
@@ -450,6 +497,31 @@ async def modify_merch(item_id: str, payload: MerchUpdate, current_admin=Depends
     return repo.update_merch(item_id, data)
 
 
+@api.get("/cities/{city_id}/posts")
+async def get_city_posts(city_id: int):
+    """Return saved social posts for the specified city (public)."""
+    posts = repo.list_city_posts(city_id)
+    # Sort by likeCount/likes desc then timestamp desc
+    def score(p: dict[str, any]):
+        return p.get("likeCount", p.get("likes", 0))
+
+    posts.sort(key=score, reverse=True)
+    return posts
+
+
+@api.post("/cities/{city_id}/scrape")
+async def manual_scrape(city_id: int, current_admin=Depends(get_current_admin)):
+    """Trigger social scrape for a specific city and return number of posts saved."""
+    from backend.social_scraper import scrape_city_posts
+    city_doc = repo.get_city(city_id)
+    if not city_doc:
+        raise HTTPException(status_code=404, detail="City not found")
+    posts = scrape_city_posts(city_doc)
+    if posts:
+        repo.save_city_posts(city_id, posts)
+    return {"saved": len(posts)}
+
+
 # -------------------- Static Files in Production --------------------
 
 if os.getenv("ENV") == "production":
@@ -463,10 +535,31 @@ if os.getenv("ENV") == "production":
         async def serve_admin():
             return FileResponse(index_path)
 
-# ------- Finally, register API router -------
+# -------------------- Settings endpoints --------------------
 
+
+@api.get("/settings")
+async def get_settings():
+    return repo.get_settings()
+
+
+class SettingsUpdate(SQLModel):
+    socialScrapeIntervalMin: int | None = None
+    instagramUsername: str | None = None
+    twitterUsername: str | None = None
+    twitchUsername: str | None = None
+    youtubeUsername: str | None = None
+
+
+@api.put("/settings")
+async def update_settings(payload: SettingsUpdate, current_admin=Depends(get_current_admin)):
+    data = {k: v for k, v in payload.dict().items() if v is not None}
+    updated = repo.update_settings(data)
+    reload_settings()
+    return updated
+
+# finally register router
 app.include_router(api)
-
 
 if __name__ == "__main__":
     import uvicorn

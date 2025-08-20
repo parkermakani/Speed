@@ -14,6 +14,10 @@ _client = firestore.client()
 STATUS_COLL = _client.collection("status").document("current")
 CITIES_COLL = _client.collection("cities")
 MERCH_COLL = _client.collection("merch")
+SETTINGS_DOC = _client.collection("settings").document("globals")
+
+# Posts subcollection name constant
+POSTS_SUB = "posts"
 
 
 # ------------------ Status ------------------
@@ -38,11 +42,69 @@ def list_cities() -> List[dict[str, Any]]:
     return docs
 
 
+def get_city(city_id: int) -> Optional[dict[str, Any]]:
+    doc = CITIES_COLL.document(str(city_id)).get()
+    if doc.exists:
+        return doc.to_dict() | {"id": city_id}
+    return None
+
+
 def update_city(city_id: int, data: dict[str, Any]) -> dict[str, Any]:
     doc_ref = CITIES_COLL.document(str(city_id))
     doc_ref.set(data, merge=True)
     doc = doc_ref.get()
     return doc.to_dict() | {"id": city_id}
+
+
+# ------------------ Posts ------------------
+
+
+def save_city_posts(city_id: int, posts: list[dict[str, Any]]) -> None:
+    """Replace the city's posts subcollection with the provided list (max 100)."""
+    doc_ref = CITIES_COLL.document(str(city_id))
+    batch = _client.batch()
+
+    # Delete existing docs (simpler; limit 100) – Firestore limits to 500 per batch.
+    existing = doc_ref.collection(POSTS_SUB).stream()
+    for doc in existing:
+        batch.delete(doc.reference)
+
+    # Add new posts (cap 100)
+    for p in posts[:100]:
+        new_ref = doc_ref.collection(POSTS_SUB).document()
+        batch.set(new_ref, p)
+
+    batch.commit()
+
+
+def list_city_posts(city_id: int) -> list[dict[str, Any]]:
+    doc_ref = CITIES_COLL.document(str(city_id))
+    return [d.to_dict() | {"id": d.id} for d in doc_ref.collection(POSTS_SUB).stream()]
+
+# ------------------ Settings ------------------
+
+
+DEFAULT_SETTINGS = {
+    "socialScrapeIntervalMin": 60,
+    "instagramUsername": "",
+    "twitterUsername": "",
+    "twitchUsername": "",
+    "youtubeUsername": "",
+}
+
+
+def get_settings() -> dict[str, Any]:
+    doc = SETTINGS_DOC.get()
+    data = doc.to_dict() if doc.exists else {}
+    # merge defaults
+    merged = {**DEFAULT_SETTINGS, **(data or {})}
+    return merged
+
+
+def update_settings(data: dict[str, Any]) -> dict[str, Any]:
+    SETTINGS_DOC.set(data, merge=True)
+    return get_settings()
+
 
 # ------------------ Merch ------------------
 

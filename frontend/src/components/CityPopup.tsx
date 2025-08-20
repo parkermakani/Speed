@@ -3,12 +3,15 @@ import { Card } from "./primitives/Card";
 import { Icon } from "./primitives/Icon";
 import type { JourneyCity } from "../types";
 import { ChromaticText } from "./ChromaticText";
+import { fetchCities, fetchCityPosts, type SocialPost } from "../services/api";
+import { useEffect, useState } from "react";
 
 interface CityPopupProps {
   city: JourneyCity;
   onClose: () => void;
   showArrow?: boolean;
   inDrawer?: boolean;
+  arrowDirection?: "up" | "down";
 }
 
 /**
@@ -20,7 +23,40 @@ export const CityPopup: React.FC<CityPopupProps> = ({
   onClose: _onClose,
   showArrow = true,
   inDrawer = false,
+  arrowDirection = "down",
 }) => {
+  const [posts, setPosts] = useState<SocialPost[] | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPosts() {
+      try {
+        // find city id first
+        const all = await fetchCities();
+        const match = all.find(
+          (c) => c.city === city.city && c.state === city.state
+        );
+        if (match) {
+          const data = await fetchCityPosts(match.id);
+          if (isMounted) setPosts(data);
+        }
+      } catch (e) {
+        // ignore errors silently for now
+        if (isMounted) setPosts([]);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    loadPosts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [city.city, city.state]);
+
   // Inject Mapbox popup override styles once
   if (
     typeof document !== "undefined" &&
@@ -49,6 +85,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
   const containerStyles: React.CSSProperties = {
     width: "100%",
     maxWidth: inDrawer ? "100%" : "min(90vw, 800px)",
+    minWidth: inDrawer ? "100%" : "min(60vw, 500px)",
     maxHeight: "75vh",
     padding: inDrawer
       ? "var(--space-4)"
@@ -116,7 +153,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
           }}
         />
       </header>
-      {/* Placeholder gallery grid */}
+      {/* Posts gallery */}
       <div
         style={{
           flex: 1,
@@ -127,57 +164,138 @@ export const CityPopup: React.FC<CityPopupProps> = ({
           paddingBottom: "var(--space-1)",
         }}
       >
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Card key={i} padding="none" style={{ overflow: "hidden" }}>
-            <div
-              style={{
-                width: "100%",
-                aspectRatio: "1 / 1",
-                background: "var(--color-border)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--color-text-secondary)",
-                fontSize: "0.8rem",
-              }}
-            >
-              Coming&nbsp;soon
-            </div>
-          </Card>
-        ))}
+        {loading &&
+          Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} padding="none" style={{ overflow: "hidden" }}>
+              <div
+                style={{
+                  width: "100%",
+                  aspectRatio: "1 / 1",
+                  background: "var(--color-border)",
+                  animation: "pulse 1.5s infinite",
+                }}
+              />
+            </Card>
+          ))}
+
+        {!loading &&
+          posts &&
+          posts.length > 0 &&
+          posts.slice(0, 30).map((post, i) => {
+            const imgUrl = post.mediaUrl || post.imageUrl;
+            return (
+              <Card key={i} padding="none" style={{ overflow: "hidden" }}>
+                {imgUrl ? (
+                  <img
+                    src={imgUrl}
+                    alt={post.caption || "Social post"}
+                    style={{
+                      width: "100%",
+                      aspectRatio: "1 / 1",
+                      objectFit: "cover",
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "100%",
+                      aspectRatio: "1 / 1",
+                      background: "var(--color-border)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--color-text-secondary)",
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    No&nbsp;image
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+
+        {!loading && posts && posts.length === 0 && (
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              textAlign: "center",
+              color: "var(--color-text-secondary)",
+            }}
+          >
+            No posts yet.
+          </div>
+        )}
       </div>
       {shouldShowArrow && (
         <>
-          {/* Outer arrow to represent border */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: 0,
-              left: "50%",
-              transform: "translate(-50%, 100%)",
-              width: 0,
-              height: 0,
-              borderLeft: "16px solid transparent",
-              borderRight: "16px solid transparent",
-              borderTop: "16px solid var(--color-land-dark)",
-              pointerEvents: "none",
-            }}
-          />
-          {/* Inner arrow fills popup background */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: 2,
-              left: "50%",
-              transform: "translate(-50%, calc(100% - 2px))",
-              width: 0,
-              height: 0,
-              borderLeft: "12px solid transparent",
-              borderRight: "12px solid transparent",
-              borderTop: "12px solid var(--color-land)",
-              pointerEvents: "none",
-            }}
-          />
+          {arrowDirection === "down" ? (
+            <>
+              {/* Outer arrow (border) */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  left: "50%",
+                  transform: "translate(-50%, 100%)",
+                  width: 0,
+                  height: 0,
+                  borderLeft: "16px solid transparent",
+                  borderRight: "16px solid transparent",
+                  borderTop: "16px solid var(--color-land-dark)",
+                  pointerEvents: "none",
+                }}
+              />
+              {/* Inner arrow */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 2,
+                  left: "50%",
+                  transform: "translate(-50%, calc(100% - 2px))",
+                  width: 0,
+                  height: 0,
+                  borderLeft: "12px solid transparent",
+                  borderRight: "12px solid transparent",
+                  borderTop: "12px solid var(--color-land)",
+                  pointerEvents: "none",
+                }}
+              />
+            </>
+          ) : (
+            <>
+              {/* Upward outer arrow */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: "50%",
+                  transform: "translate(-50%, -100%)",
+                  width: 0,
+                  height: 0,
+                  borderLeft: "16px solid transparent",
+                  borderRight: "16px solid transparent",
+                  borderBottom: "16px solid var(--color-land-dark)",
+                  pointerEvents: "none",
+                }}
+              />
+              {/* Upward inner arrow */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: 2,
+                  left: "50%",
+                  transform: "translate(-50%, calc(-100% + 2px))",
+                  width: 0,
+                  height: 0,
+                  borderLeft: "12px solid transparent",
+                  borderRight: "12px solid transparent",
+                  borderBottom: "12px solid var(--color-land)",
+                  pointerEvents: "none",
+                }}
+              />
+            </>
+          )}
         </>
       )}
     </div>

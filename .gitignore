@@ -20,6 +20,7 @@ build/
 frontend/node_modules/
 frontend/.vite/
 frontend/dist/
+frontend/.env
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -47,3 +48,5 @@ replit.nix
 # ---- Secrets ----
 # Ignore Firebase service account key (do NOT commit)
 backend/firebase-service-account.json
+backend/.env
+backend/.env # keep ignoring in future

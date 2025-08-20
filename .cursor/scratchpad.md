@@ -12,6 +12,7 @@ A mobile-first React web app that shows a Mapbox map centered on a live location
 - **Design system**: Define our own style tokens (colors, spacing, radii, typography, breakpoints) and a small set of UI primitives to enable fast iteration and consistent mobile-first UI.
 - **DX and TDD**: Clear tests for backend endpoints and basic e2e/frontend tests for critical flows. Keep setup light and fast.
 - **Future integrations**: Provide boundaries and extensibility for a StreamElements bot to update location/quote and optional social media scraping near the marker (Instagram/Twitter/X).
+- **Social media scraping pipeline**: Integrate Apify actors to automatically collect Instagram & TikTok posts mentioning target profiles after a city becomes current; filter by timestamp, location, and keywords; surface results in CityPopup gallery.
 - **Quote positioning**: Keep the inspirational quote pinned to a fixed header area of the map rather than rendered near the marker, ensuring readability across breakpoints.
 - **City-wide pulsing effect**: Replace the single-point radius with an animated polygon representing the selected city limits; efficiently fetch and render the geometry while maintaining smooth pulse animation.
 - **3D marker model**: Investigate embedding a lightweight GLTF model as a marker that reacts to map pitch/bearing for an immersive experience, balancing performance on mobile.
@@ -231,7 +232,20 @@ A mobile-first React web app that shows a Mapbox map centered on a live location
     - 21c. **Map integration**: In Map/FlatMap component, iterate existing city markers; attach `onClick` to set `selectedCity` state and render `CityPopup` accordingly.
     - 21d. **Accessibility & UX**: Provide close button, backdrop (mobile), ESC key close; focus trap.
     - 21e. **Testing**: Unit test that popup opens/closes and renders title based on selected marker; viewport mocked for mobile & desktop.
-    - **Success**: Clicking any city marker opens popup with correct city title; on mobile view (<768px) popup covers viewport; on desktop anchored at marker; closing resumes map interactions; tests pass.
+    - **Success**: Clicking any city marker opens popup with correct city title; on mobile view (<768px) popup covers viewport; closing resumes map interactions; tests pass.
+
+22. Social media integration (Instagram & TikTok via Apify)
+
+- 22a. **Data model**: Add `lastCurrentAt` timestamp column to `City` SQLModel (or Firestore field) to record when `is_current` toggled true.
+- 22b. **Backend logic**: Update `/cities/{id}` mutation to set `lastCurrentAt` and ensure only one city is current.
+- 22c. **Scraper module**: Install `apify-client` in `backend/requirements.txt`; create `backend/social_scraper.py` that triggers Apify actors for Instagram & TikTok queries like `"@{profile}"` and city keywords since `lastCurrentAt`.
+- 22d. **Scheduler**: Add background job scheduler (e.g., `apscheduler` or Celery beat) that runs every `SOCIAL_SCRAPE_INTERVAL_MIN` (env) and populates Firestore `cities/{cityId}/posts`.
+- 22e. **Filtering**: Include only posts newer than `lastCurrentAt`, mentioning target profiles/keywords, and (if available) within city geo-bounds (`city_polygon` or ±30 mi bounding box).
+- 22f. **Storage**: Persist top 20–100 scored posts per city (fields: `platform`, `postId`, `username`, `caption`, `mediaUrl`, `likes`, `timestamp`, `lat`, `lng`, `score`).
+- 22g. **API endpoint**: Expose `GET /cities/{id}/posts` returning list of post DTOs sorted by score desc (anonymous).
+- 22h. **Frontend**: Update `CityPopup` to fetch posts and render as `Card` gallery; gracefully handle loading/empty/error states.
+- 22i. **Testing & docs**: Unit tests mocking Apify responses, integration tests for endpoint, Vitest tests for gallery rendering; update README/env docs (`APIFY_TOKEN`, `SOCIAL_SCRAPE_INTERVAL_MIN`, `SOCIAL_PROFILES`).
+- **Success**: After toggling a city to current, within the configured interval its popup shows a gallery of relevant IG/TikTok posts; tests pass and manual spot-check shows accuracy.
 
 ### .gitignore (draft)
 

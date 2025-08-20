@@ -55,6 +55,8 @@ class CityBase(SQLModel):
     lng: float = Field(ge=-180, le=180)
     order: int = Field(ge=0, description="Sequence order along the journey")
     is_current: bool = Field(default=False, description="Whether this is the current city")
+    last_current_at: Optional[datetime] = Field(default=None, description="UTC timestamp when city became current")
+    keywords: Optional[str] = Field(default=None, description="Comma-separated extra keywords for social filtering")
 
 
 class City(CityBase, table=True):
@@ -72,6 +74,8 @@ class CityUpdate(SQLModel):
     lng: Optional[float] = None
     order: Optional[int] = None
     is_current: Optional[bool] = None
+    last_current_at: Optional[datetime] = None
+    keywords: Optional[str] = None
 
 
 class CityResponse(CityBase):

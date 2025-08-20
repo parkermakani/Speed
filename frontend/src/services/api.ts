@@ -1,5 +1,5 @@
 import type { Status, StatusUpdate } from "../types";
-import type { City, JourneyResponse, SleepResponse } from "../types";
+import type { City, JourneyResponse, SleepResponse, Settings } from "../types";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || window.location.origin;
@@ -236,6 +236,72 @@ export async function toggleSleep(
   if (!res.ok) {
     const err = await res.json();
     throw new ApiError(res.status, err.detail || "Failed to toggle sleep");
+  }
+  return await res.json();
+}
+
+// -------------------- Social Posts --------------------
+
+export interface SocialPost {
+  id?: string;
+  platform?: string;
+  mediaUrl?: string;
+  imageUrl?: string; // fallback key
+  caption?: string;
+  username?: string;
+  likeCount?: number;
+  likes?: number;
+  timestamp?: string;
+}
+
+export async function fetchCityPosts(cityId: number): Promise<SocialPost[]> {
+  const res = await fetch(`${API_BASE_URL}/api/cities/${cityId}/posts`);
+  if (!res.ok) throw new ApiError(res.status, "Failed to fetch city posts");
+  const data: SocialPost[] = await res.json();
+  return data;
+}
+
+export async function runScrape(
+  cityId: number,
+  token: string
+): Promise<number> {
+  const res = await fetch(`${API_BASE_URL}/api/cities/${cityId}/scrape`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new ApiError(res.status, err.detail || "Failed to run scrape");
+  }
+  const data = await res.json();
+  return data.saved as number;
+}
+
+// ---------------- Settings ----------------
+
+export async function fetchSettings(): Promise<Settings> {
+  const res = await fetch(`${API_BASE_URL}/api/settings`);
+  if (!res.ok) throw new ApiError(res.status, "Failed to fetch settings");
+  return await res.json();
+}
+
+export async function updateSettings(
+  payload: Partial<Settings>,
+  token: string
+): Promise<Settings> {
+  const res = await fetch(`${API_BASE_URL}/api/settings`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new ApiError(res.status, err.detail || "Failed to update settings");
   }
   return await res.json();
 }

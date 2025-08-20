@@ -25,6 +25,8 @@ export interface City {
   lng: number;
   order: number;
   is_current: boolean;
+  keywords?: string | null;
+  lastCurrentAt?: string | null;
 }
 
 export interface JourneyCity {
@@ -41,4 +43,12 @@ export interface JourneyResponse {
 
 export interface SleepResponse {
   isSleep: boolean;
+}
+
+export interface Settings {
+  socialScrapeIntervalMin: number;
+  instagramUsername: string;
+  twitterUsername: string;
+  twitchUsername: string;
+  youtubeUsername: string;
 }
