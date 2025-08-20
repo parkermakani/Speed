@@ -5,17 +5,6 @@ const API_BASE_URL = window.location.origin;
 
 const HIDE = (import.meta.env.VITE_HIDE_CITIES ?? "false") === "true";
 
-async function fetchAllCitiesRaw(): Promise<City[]> {
-  const response = await fetch(`${API_BASE_URL}/api/cities`);
-  if (!response.ok)
-    throw new ApiError(response.status, "Failed to fetch cities");
-  return (await response.json()) as City[];
-}
-
-function shuffleArray<T>(arr: T[]): T[] {
-  return [...arr].sort(() => Math.random() - 0.5);
-}
-
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
