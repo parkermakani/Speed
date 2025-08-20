@@ -4,6 +4,19 @@ import type { City, JourneyResponse, SleepResponse } from "../types";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || window.location.origin;
 
+const SHUFFLE = (import.meta.env.VITE_SHUFFLE_CITIES ?? "false") === "true";
+
+async function fetchAllCitiesRaw(): Promise<City[]> {
+  const response = await fetch(`${API_BASE_URL}/api/cities`);
+  if (!response.ok)
+    throw new ApiError(response.status, "Failed to fetch cities");
+  return (await response.json()) as City[];
+}
+
+function shuffleArray<T>(arr: T[]): T[] {
+  return [...arr].sort(() => Math.random() - 0.5);
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -69,7 +82,8 @@ export async function fetchCities(): Promise<City[]> {
   if (!response.ok) {
     throw new ApiError(response.status, "Failed to fetch cities");
   }
-  return await response.json();
+  const data: City[] = await response.json();
+  return SHUFFLE ? shuffleArray(data) : data;
 }
 
 export async function toggleCurrentCity(
@@ -115,6 +129,86 @@ export async function fetchJourney(): Promise<JourneyResponse> {
   const res = await fetch(`${API_BASE_URL}/api/journey`);
   if (!res.ok) {
     throw new ApiError(res.status, "Failed to fetch journey");
+  }
+  const data: JourneyResponse = await res.json();
+  if (SHUFFLE) {
+    try {
+      const all = await fetchAllCitiesRaw();
+      // Exclude current city if present in list
+      const others = all.filter(
+        (c) =>
+          !(
+            data.currentCity &&
+            c.city === data.currentCity.city &&
+            c.state === data.currentCity.state
+          )
+      );
+      const shuffled = shuffleArray(others);
+      const take = Math.floor(Math.random() * (shuffled.length + 1));
+      const subset = shuffled
+        .slice(0, take)
+        .map((c) => ({ city: c.city, state: c.state, lat: c.lat, lng: c.lng }));
+      data.path = subset;
+    } catch (e) {
+      // fallback to previous behavior if cities fetch fails
+    }
+  }
+  return data;
+}
+
+// -------------------- Merch --------------------
+
+export interface MerchItem {
+  id: string;
+  name: string;
+  price: string;
+  imageUrl: string;
+  url?: string;
+  active: boolean;
+}
+
+export async function fetchMerch(): Promise<MerchItem[]> {
+  const res = await fetch(`${API_BASE_URL}/api/merch`);
+  if (!res.ok) throw new ApiError(res.status, "Failed to fetch merch");
+  const items: MerchItem[] = await res.json();
+  return items;
+}
+
+export async function createMerch(
+  item: Omit<MerchItem, "id">,
+  token: string
+): Promise<MerchItem> {
+  const res = await fetch(`${API_BASE_URL}/api/merch`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(item),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new ApiError(res.status, err.detail || "Failed to create merch");
+  }
+  return await res.json();
+}
+
+export async function updateMerch(
+  id: string,
+  payload: Partial<MerchItem>,
+  token: string
+): Promise<MerchItem> {
+  const res = await fetch(`${API_BASE_URL}/api/merch/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new ApiError(res.status, err.detail || "Failed to update merch");
   }
   return await res.json();
 }

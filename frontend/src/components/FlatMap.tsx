@@ -2,15 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import AnimatedMotorcycle from "./AnimatedMotorcycle";
+import AnimatedSleeping from "./AnimatedSleeping";
 import ReactDOM from "react-dom/client";
 // Quote overlay removed; quote will be rendered at page level
+
+import type { JourneyCity } from "../types";
+import { CityPopup } from "./CityPopup";
+import { Drawer } from "./primitives/Drawer";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 
 interface FlatMapProps {
   lat: number;
   lng: number;
   state?: string | null;
   path?: { lat: number; lng: number }[];
-  pastCities?: { lat: number; lng: number }[];
+  pastCities?: { city?: string; state?: string; lat: number; lng: number }[];
+  /** Whether the map is in sleep mode; changes marker to sleeping animation */
+  isSleep?: boolean;
 }
 
 // Mapbox token
@@ -43,11 +51,15 @@ export function FlatMap({
   state,
   path = [],
   pastCities = [],
+  isSleep = false,
 }: FlatMapProps) {
+  const [selectedCity, setSelectedCity] = useState<JourneyCity | null>(null);
+  const isMobile = useMediaQuery("(max-width: 1100px)");
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
   const pastMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const popupRef = useRef<mapboxgl.Popup | null>(null);
   const [loading, setLoading] = useState(true);
   const [unsupported, setUnsupported] = useState(false);
 
@@ -87,13 +99,18 @@ export function FlatMap({
 
       // pulse
       let up = true;
-      setInterval(() => {
-        if (mapRef.current?.getLayer(highlightId)) {
-          mapRef.current.setPaintProperty(
-            highlightId,
-            "fill-opacity",
-            up ? 0.35 : 0.15
-          );
+      // clear any previous pulse interval stored on map object
+      // @ts-ignore
+      if (mapRef.current._pulseId) clearInterval(mapRef.current._pulseId);
+
+      // store new interval id on map instance so we can clear later
+      // @ts-ignore
+      mapRef.current._pulseId = setInterval(() => {
+        const m = mapRef.current;
+        if (!m) return;
+        const hasLayer = m.getLayer && m.getLayer(highlightId);
+        if (hasLayer) {
+          m.setPaintProperty(highlightId, "fill-opacity", up ? 0.35 : 0.15);
           up = !up;
         }
       }, 1000);
@@ -119,9 +136,10 @@ export function FlatMap({
     const map = mapRef.current;
     if (!map) return;
 
+    // Remove existing marker so we can recreate it when sleep state changes
     if (markerRef.current) {
-      markerRef.current.setLngLat([lng, lat]);
-      return;
+      markerRef.current.remove();
+      markerRef.current = null;
     }
 
     const create = () => {
@@ -130,16 +148,17 @@ export function FlatMap({
       container.style.pointerEvents = "auto";
 
       // Mount React component inside container
+      const MarkerComponent = isSleep ? AnimatedSleeping : AnimatedMotorcycle;
       ReactDOM.createRoot(container).render(
-        <AnimatedMotorcycle
-          size={300}
+        <MarkerComponent
+          size={isSleep ? 220 : 300}
           showBorder={false}
-          clickWidth={120}
-          clickHeight={140}
-          clickOffsetX={150}
-          clickOffsetY={80}
+          clickWidth={isSleep ? 200 : 120}
+          clickHeight={isSleep ? 140 : 140}
+          clickOffsetX={isSleep ? 0 : 150}
+          clickOffsetY={isSleep ? 60 : 80}
           showClickBorder={false}
-          onClick={() => console.log("Motorcycle marker clicked")}
+          onClick={() => console.log("Marker clicked")}
         />
       );
 
@@ -169,7 +188,6 @@ export function FlatMap({
       return;
     }
 
-    const lineId = "journey-path";
     const sourceId = "journey-src";
 
     const coordinates = path
@@ -194,9 +212,9 @@ export function FlatMap({
       );
     }
 
-    if (!map.getLayer(lineId)) {
+    if (path.length > 0 && !map.getLayer("journey-path")) {
       map.addLayer({
-        id: lineId,
+        id: "journey-path",
         type: "line",
         source: sourceId,
         paint: {
@@ -230,6 +248,17 @@ export function FlatMap({
       img.src = allIcons[Math.floor(Math.random() * allIcons.length)];
       img.style.width = "60px";
       img.style.height = "60px";
+      img.style.cursor = "pointer";
+      img.style.pointerEvents = "auto";
+      img.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setSelectedCity({
+          city: (pt as any).city ?? "Unknown",
+          state: (pt as any).state ?? "",
+          lat: pt.lat,
+          lng: pt.lng,
+        });
+      });
       const mk = new mapboxgl.Marker({ element: img, anchor: "center" })
         .setLngLat([pt.lng, pt.lat])
         .addTo(map);
@@ -308,6 +337,9 @@ export function FlatMap({
 
     return () => {
       resizeObserver?.disconnect();
+      // clear pulse interval if present
+      // @ts-ignore
+      if (mapRef.current?._pulseId) clearInterval(mapRef.current._pulseId);
       mapRef.current?.remove();
     };
   }, []);
@@ -319,7 +351,70 @@ export function FlatMap({
     addStateLayers(state || "");
     drawPath();
     renderPastMarkers();
-  }, [lat, lng, state, path, pastCities]);
+  }, [lat, lng, state, path, pastCities, isSleep]);
+
+  // Manage Mapbox Popup on desktop
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (selectedCity && !isMobile) {
+      // remove any existing popup
+      if (popupRef.current) {
+        popupRef.current.remove();
+        popupRef.current = null;
+      }
+
+      const container = document.createElement("div");
+      ReactDOM.createRoot(container).render(
+        <CityPopup
+          city={selectedCity}
+          onClose={() => setSelectedCity(null)}
+          showArrow
+        />
+      );
+
+      // Close when clicking elsewhere on the map
+      const handleMapClick = () => setSelectedCity(null);
+      map.on("click", handleMapClick);
+
+      popupRef.current = new mapboxgl.Popup({
+        closeButton: false,
+        offset: 15,
+        className: "city-popup",
+      })
+        .setLngLat([selectedCity.lng, selectedCity.lat])
+        .setDOMContent(container)
+        .setMaxWidth("800px")
+        .addTo(map);
+
+      return () => {
+        map.off("click", handleMapClick);
+      };
+    } else {
+      if (popupRef.current) {
+        popupRef.current.remove();
+        popupRef.current = null;
+      }
+    }
+  }, [selectedCity, isMobile]);
+
+  // Close popup with Escape key
+  useEffect(() => {
+    if (!selectedCity) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedCity(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedCity]);
+
+  // Cleanup popup when map unmounts
+  useEffect(() => {
+    return () => {
+      if (popupRef.current) popupRef.current.remove();
+    };
+  }, []);
 
   if (!MAPBOX_TOKEN || MAPBOX_TOKEN.includes("your-")) {
     return (
@@ -370,6 +465,20 @@ export function FlatMap({
           Loading map...
         </div>
       )}
+      {/* Mobile full-screen popup */}
+      <Drawer
+        isOpen={isMobile && !!selectedCity}
+        onClose={() => setSelectedCity(null)}
+      >
+        {isMobile && selectedCity && (
+          <CityPopup
+            city={selectedCity}
+            onClose={() => setSelectedCity(null)}
+            showArrow={false}
+            inDrawer
+          />
+        )}
+      </Drawer>
     </div>
   );
 }

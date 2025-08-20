@@ -1,38 +1,36 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Card } from "./primitives/Card";
 import { Button } from "./primitives/Button";
 import { Stack } from "./primitives/Stack";
 // 3D model removed for now – placeholder only
 import { ChromaticText } from "./ChromaticText";
-import shirtNavyImg from "../assets/examples/Shirt1.png";
-import shirtWhiteImg from "../assets/examples/Shirt2.png";
+import { fetchMerch } from "../services/api";
+import type { MerchItem } from "../services/api";
 
-interface Product {
-  id: string;
-  name: string;
-  price: string;
-  image: string;
-  url: string;
-}
+const useMerch = () => {
+  const [products, setProducts] = useState<MerchItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-const PRODUCTS: Product[] = [
-  {
-    id: "tee",
-    name: "Speed Does America Tee - Navy",
-    price: "$30",
-    image: shirtNavyImg,
-    url: "https://speed.store/products/gold-logo-black-tee",
-  },
-  {
-    id: "hoodie",
-    name: "Speed Does America Tee - White",
-    price: "$30",
-    image: shirtWhiteImg,
-    url: "https://speed.store/products/gold-logo-black-tee",
-  }
-];
+  useEffect(() => {
+    const loadMerch = async () => {
+      try {
+        const all: MerchItem[] = await fetchMerch();
+        setProducts(all.filter((m: MerchItem) => m.active));
+      } catch (e) {
+        console.error("Failed to fetch merch:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadMerch();
+  }, []);
+
+  return { products, loading };
+};
 
 export const Merch: React.FC = () => {
+  const { products, loading } = useMerch();
+
   return (
     <div style={{ padding: "var(--space-6)" }}>
       <div style={{ textAlign: "center" }}>
@@ -81,10 +79,12 @@ export const Merch: React.FC = () => {
             overflowY: "auto",
           }}
         >
-          {PRODUCTS.map((p) => (
+          {loading && <p>Loading…</p>}
+          {!loading && products.length === 0 && <p>No products available.</p>}
+          {products.map((p) => (
             <Card key={p.id} style={{ background: "var(--color-bg-elevated)" }}>
               <img
-                src={p.image}
+                src={p.imageUrl}
                 alt={p.name}
                 style={{
                   width: "100%",

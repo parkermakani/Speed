@@ -43,3 +43,7 @@ replit.nix
 
 # ---- Misc ----
 *.orig
+
+# ---- Secrets ----
+# Ignore Firebase service account key (do NOT commit)
+backend/*.json

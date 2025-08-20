@@ -26,20 +26,22 @@ export function FormField({
   const fieldId = React.useId();
 
   // Clone children to add proper ARIA attributes
-  const enhancedChildren = React.cloneElement(children as React.ReactElement, {
-    id: fieldId,
-    "aria-describedby":
-      [
+  const enhancedChildren = React.cloneElement(
+    children as React.ReactElement,
+    {
+      id: fieldId,
+      "aria-describedby": [
         description ? `${fieldId}-description` : "",
         error ? `${fieldId}-error` : "",
       ]
         .filter(Boolean)
         .join(" "),
-    "aria-invalid": error ? "true" : "false",
-    error: !!error,
-    disabled,
-    required,
-  } as any);
+      "aria-invalid": error ? "true" : undefined,
+      ...(error ? { error: true } : {}),
+      disabled,
+      required,
+    } as any
+  );
 
   return (
     <Stack spacing="sm" className={className} style={style}>

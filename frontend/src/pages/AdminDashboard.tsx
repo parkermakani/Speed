@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { fetchStatus, updateStatus, ApiError } from "../services/api";
 import { fetchSleep, toggleSleep } from "../services/api";
 import { CityTable } from "../components/CityTable";
+import { AdminMerch } from "../components/AdminMerch";
 import type { Status, StatusUpdate } from "../types";
 
 interface AdminDashboardProps {
@@ -221,6 +222,9 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
 
         {/* Journey Cities Table */}
         <CityTable onChange={loadCurrentStatus} />
+
+        {/* Merch Management */}
+        <AdminMerch />
 
         {/* Update Form */}
         <Card padding="lg">

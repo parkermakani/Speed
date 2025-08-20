@@ -100,12 +100,16 @@ export const CityTable: React.FC<CityTableProps> = ({ onChange }) => {
               </tr>
             </thead>
             <tbody>
-              {cities.map((c) => (
+              {cities.map((c, idx) => (
                 <tr
                   key={c.id}
                   style={{ borderTop: "1px solid var(--color-border)" }}
                 >
-                  <td style={{ padding: "4px" }}>{c.order}</td>
+                  <td style={{ padding: "4px" }}>
+                    {import.meta.env.VITE_SHUFFLE_CITIES === "true"
+                      ? idx + 1
+                      : c.order}
+                  </td>
                   <td style={{ padding: "4px" }}>{c.city}</td>
                   <td style={{ padding: "4px" }}>{c.state}</td>
                   <td

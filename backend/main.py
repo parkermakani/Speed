@@ -17,11 +17,32 @@ from backend.models import (
     Status, StatusCreate, StatusResponse,
     City, CityCreate, CityUpdate, CityResponse, JourneyResponse, JourneyCity
 )
+# firestore data layer
+from backend import firestore_repo as repo
+# Keep database import for other endpoints until fully migrated
 from backend.database import create_db_and_tables, get_session
-from backend.auth import (
-    LoginRequest, TokenResponse, create_access_token, 
-    verify_admin_password, get_current_admin, JWT_EXPIRE_MINUTES
-)
+from backend.auth import get_current_admin
+
+# -------------------- Merch Endpoints --------------------
+
+
+class MerchCreate(SQLModel):
+    name: str
+    price: str
+    imageUrl: str
+    url: str | None = None
+    active: bool = True
+
+
+class MerchUpdate(SQLModel):
+    name: str | None = None
+    price: str | None = None
+    imageUrl: str | None = None
+    url: str | None = None
+    active: bool | None = None
+
+
+# (duplicate merch endpoints removed; real ones are defined later after api init)
 
 # -------------------- Helper: geocode city --------------------
 
@@ -199,88 +220,23 @@ async def on_startup():
         session.commit()
 
 
-@api.get("/status", response_model=StatusResponse)
-async def get_status(session: Session = Depends(get_session)):
-    """Get current location and quote status"""
-    try:
-        status = session.exec(select(Status)).first()
-        if not status:
-            raise HTTPException(status_code=404, detail="No status found")
-        
-        return StatusResponse.from_status(status)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+@api.get("/status", response_model=dict)
+async def get_status():
+    """Fetch current status from Firestore."""
+    status = repo.get_status()
+    if not status:
+        raise HTTPException(status_code=404, detail="Status not found")
+    return status
 
 
-@api.post("/status", response_model=StatusResponse)
-async def update_status(
-    status_data: StatusCreate,
-    session: Session = Depends(get_session),
-    current_admin = Depends(get_current_admin)
-):
-    """Update location and quote status (admin only)"""
-    try:
-        # Get existing status or create new one
-        existing_status = session.exec(select(Status)).first()
-        
-        if existing_status:
-            # Update existing
-            existing_status.lat = status_data.lat
-            existing_status.lng = status_data.lng
-            existing_status.state = status_data.state
-            existing_status.quote = status_data.quote
-            existing_status.city = status_data.city
-            existing_status.city_polygon = status_data.city_polygon
-            existing_status.last_updated = datetime.now()
-            session.add(existing_status)
-        else:
-            # Create new
-            new_status = Status(
-                lat=status_data.lat,
-                lng=status_data.lng,
-                state=status_data.state,
-                quote=status_data.quote,
-                city=status_data.city,
-                city_polygon=status_data.city_polygon,
-                last_updated=datetime.now()
-            )
-            session.add(new_status)
-        
-        session.commit()
-        
-        # Return updated status
-        updated_status = session.exec(select(Status)).first()
-        return StatusResponse.from_status(updated_status)
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+@api.post("/status")
+async def update_status(status_data: StatusCreate, current_admin=Depends(get_current_admin)):
+    data_dict = status_data.dict(exclude_unset=True)
+    updated = repo.update_status(data_dict)
+    return updated
 
 
-@api.post("/auth/login", response_model=TokenResponse)
-async def login(login_data: LoginRequest):
-    """Admin login endpoint"""
-    if not verify_admin_password(login_data.password):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid password"
-        )
-    
-    access_token_expires = timedelta(minutes=JWT_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": "admin"}, 
-        expires_delta=access_token_expires
-    )
-    
-    return TokenResponse(
-        access_token=access_token,
-        expires_in=JWT_EXPIRE_MINUTES * 60  # Convert to seconds
-    )
-
-
-@api.post("/auth/logout")
-async def logout():
-    """Admin logout endpoint (client-side token removal)"""
-    return {"message": "Successfully logged out"}
+# Deprecated custom login/logout endpoints (handled by Firebase Auth on the client)
 
 
 @api.get("/places/search")
@@ -367,86 +323,84 @@ async def health_check():
 # -------------------- City & Journey Endpoints --------------------
 
 
-@api.get("/cities", response_model=list[CityResponse])
-async def list_cities(session: Session = Depends(get_session)):
-    cities = session.exec(select(City).order_by(City.order)).all()
-    return [CityResponse.from_city(c) for c in cities]
+@api.get("/cities")
+async def list_cities():
+    docs = repo.list_cities()
+    result = []
+    for d in docs:
+        if not d.get("city"):
+            continue
+        result.append({
+            "id": d["id"],
+            "city": d["city"],
+            "state": d.get("state", ""),
+            "lat": d.get("lat", 0.0),
+            "lng": d.get("lng", 0.0),
+            "order": d.get("order", 0),
+            "is_current": d.get("isCurrent", False),
+        })
+    return result
 
 
 @api.put("/cities/{city_id}", response_model=CityResponse)
 async def update_city(
     city_id: int,
     city_update: CityUpdate,
-    session: Session = Depends(get_session),
-    current_admin = Depends(get_current_admin),
+    current_admin=Depends(get_current_admin),
 ):
-    city = session.get(City, city_id)
-    if not city:
-        raise HTTPException(status_code=404, detail="City not found")
+    data = city_update.dict(exclude_unset=True)
 
-    # If is_current toggled true, unset others
-    if city_update.is_current is True:
-        other_cities = session.exec(select(City).where(City.id != city_id, City.is_current == True)).all()
-        for other in other_cities:
-            other.is_current = False
-            session.add(other)
+    # If is_current set true, ensure we unset others in Firestore
+    if data.get("is_current") is True:
+        cities = repo.list_cities()
+        for c in cities:
+            if c["id"] != city_id and c.get("isCurrent"):
+                repo.update_city(c["id"], {"isCurrent": False})
 
-    # Update provided fields
-    update_data = city_update.dict(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(city, key, value)
+    payload = {
+        "city": data.get("city"),
+        "state": data.get("state"),
+        "lat": data.get("lat"),
+        "lng": data.get("lng"),
+        "order": data.get("order"),
+        "isCurrent": data.get("is_current"),
+    }
+    payload = {k: v for k, v in payload.items() if v is not None}
 
-    session.add(city)
-    session.commit()
+    updated_doc = repo.update_city(city_id, payload)
 
-    # If this city is now current, ensure coordinates & update Status
-    if city.is_current:
-        # Fetch coords if missing or zero
-        if (abs(city.lat) < 0.0001 and abs(city.lng) < 0.0001):
-            coords = await geocode_city(city.city, city.state)
-            if coords:
-                city.lat, city.lng = coords
-                session.add(city)
-                session.commit()
+    return {
+        "id": city_id,
+        "city": updated_doc["city"],
+        "state": updated_doc.get("state", ""),
+        "lat": updated_doc.get("lat", 0.0),
+        "lng": updated_doc.get("lng", 0.0),
+        "order": updated_doc.get("order", 0),
+        "is_current": updated_doc.get("isCurrent", False),
+    }
 
-        status_rec = session.exec(select(Status)).first()
-        if status_rec:
-            status_rec.city = city.city
-            status_rec.state = city.state
-            status_rec.lat = city.lat
-            status_rec.lng = city.lng
-            status_rec.last_updated = datetime.now()
-            session.add(status_rec)
-            session.commit()
+    # If now current, also patch status doc
+    if updated.is_current:
+        repo.update_status({
+            "city": updated.city,
+            "state": updated.state,
+            "lat": updated.lat,
+            "lng": updated.lng,
+        })
 
-    session.refresh(city)
-    return CityResponse.from_city(city)
+    return updated
 
 
-@api.get("/journey", response_model=JourneyResponse)
-async def get_journey(session: Session = Depends(get_session)):
-    cities = session.exec(select(City).order_by(City.order)).all()
-    if not cities:
-        return JourneyResponse(currentCity=None, path=[])
-
-    current = next((c for c in cities if c.is_current), cities[-1])
-    path_cities = [c for c in cities if c.order < current.order]
-
-    def to_jc(c: City):
-        return JourneyCity(city=c.city, state=c.state, lat=c.lat, lng=c.lng)
-
-    return JourneyResponse(
-        currentCity=to_jc(current),
-        path=[to_jc(c) for c in path_cities],
-    )
+@api.get("/journey")
+async def get_journey():
+    return repo.compute_journey()
 
 # -------------------- Sleep mode endpoints --------------------
 
 
 @api.get("/sleep")
-async def get_sleep(session: Session = Depends(get_session)):
-    status_rec = session.exec(select(Status)).first()
-    return {"isSleep": bool(status_rec.is_sleep) if status_rec else False}
+async def get_sleep():
+    return {"isSleep": repo.get_sleep_flag()}
 
 
 class SleepToggle(SQLModel):
@@ -454,22 +408,50 @@ class SleepToggle(SQLModel):
 
 
 @api.put("/sleep")
-async def toggle_sleep(
-    payload: SleepToggle,
-    session: Session = Depends(get_session),
-    current_admin = Depends(get_current_admin),
-):
-    status_rec = session.exec(select(Status)).first()
-    if not status_rec:
-        raise HTTPException(status_code=404, detail="Status missing")
-    status_rec.is_sleep = payload.isSleep
-    session.add(status_rec)
-    session.commit()
-    return {"isSleep": status_rec.is_sleep}
+async def toggle_sleep(payload: SleepToggle, current_admin=Depends(get_current_admin)):
+    flag = repo.set_sleep_flag(payload.isSleep)
+    return {"isSleep": flag}
 
 
 # --- Mount static files LAST so API routes take precedence ---
-app.include_router(api)
+
+# -------------------- Merch endpoints --------------------
+
+
+class MerchCreate(SQLModel):
+    name: str
+    price: str
+    imageUrl: str
+    url: str | None = None
+    active: bool = True
+
+
+class MerchUpdate(SQLModel):
+    name: str | None = None
+    price: str | None = None
+    imageUrl: str | None = None
+    url: str | None = None
+    active: bool | None = None
+
+
+@api.get("/merch")
+async def list_merch():
+    return repo.list_merch()
+
+
+@api.post("/merch")
+async def create_merch(item: MerchCreate, current_admin=Depends(get_current_admin)):
+    return repo.create_merch(item.dict())
+
+
+@api.put("/merch/{item_id}")
+async def modify_merch(item_id: str, payload: MerchUpdate, current_admin=Depends(get_current_admin)):
+    data = {k: v for k, v in payload.dict().items() if v is not None}
+    return repo.update_merch(item_id, data)
+
+
+# -------------------- Static Files in Production --------------------
+
 if os.getenv("ENV") == "production":
     frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
     if os.path.isdir(frontend_dist):
@@ -480,6 +462,10 @@ if os.getenv("ENV") == "production":
         @app.get("/admin", include_in_schema=False)
         async def serve_admin():
             return FileResponse(index_path)
+
+# ------- Finally, register API router -------
+
+app.include_router(api)
 
 
 if __name__ == "__main__":

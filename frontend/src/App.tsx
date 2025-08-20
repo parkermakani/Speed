@@ -66,40 +66,28 @@ function App() {
         <Quote quote={status.quote} />
       </div>
 
-      {sleep.isSleep ? (
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "var(--color-surface)",
-            color: "var(--color-text-secondary)",
-          }}
-        >
-          <p>Map is sleeping – come back soon!</p>
-        </div>
-      ) : (
-        <div className="map-container">
-          <FlatMap
-            lat={journey.currentCity?.lat || status.lat}
-            lng={journey.currentCity?.lng || status.lng}
-            state={journey.currentCity?.state || status.state}
-            path={[
-              ...journey.path.map((p) => ({ lat: p.lat, lng: p.lng })),
-              ...(journey.currentCity
-                ? [
-                    {
-                      lat: journey.currentCity.lat,
-                      lng: journey.currentCity.lng,
-                    },
-                  ]
-                : []),
-            ]}
-            pastCities={journey.path.map((p) => ({ lat: p.lat, lng: p.lng }))}
-          />
-        </div>
-      )}
+      <div className="map-container">
+        <FlatMap
+          lat={journey.currentCity?.lat || status.lat}
+          lng={journey.currentCity?.lng || status.lng}
+          state={journey.currentCity?.state || status.state}
+          path={[
+            ...journey.path.map((p) => ({ lat: p.lat, lng: p.lng })),
+            ...(journey.currentCity
+              ? [
+                  {
+                    lat: journey.currentCity.lat,
+                    lng: journey.currentCity.lng,
+                  },
+                ]
+              : []),
+          ]}
+          pastCities={journey.path}
+          isSleep={sleep.isSleep}
+        />
+
+        {/* Removed sleep overlay per user request */}
+      </div>
 
       {/* Footer overlay */}
       <Footer />
