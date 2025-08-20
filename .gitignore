@@ -46,4 +46,4 @@ replit.nix
 
 # ---- Secrets ----
 # Ignore Firebase service account key (do NOT commit)
-backend/*.json
+backend/firebase-service-account.json
