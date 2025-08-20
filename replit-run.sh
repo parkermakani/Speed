@@ -11,5 +11,5 @@ npm run build
 cd ..
 
 # --- Run FastAPI Server ---
-UVICORN_PORT=${PORT:-8000}
-exec uvicorn backend.main:app --host 0.0.0.0 --port "$UVICORN_PORT"
+export ENV=production
+uvicorn backend.main:app --host 0.0.0.0 --port 8000
