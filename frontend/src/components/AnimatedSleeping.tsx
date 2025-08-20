@@ -6,7 +6,7 @@ import frame1 from "../assets/SpeedSleeping/SpeedSleeping_00001.png";
 import frame2 from "../assets/SpeedSleeping/SpeedSleeping_00002.png";
 import frame3 from "../assets/SpeedSleeping/SpeedSleeping_00003.png";
 
-const FRAMES = [frame0, frame1, frame2, frame3];
+const FRAMES = [frame0, frame1, frame2, frame3]; 
 
 export interface AnimatedSleepingProps {
   /** Pixel size for width/height. Defaults to 64. */
