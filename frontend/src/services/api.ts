@@ -1,8 +1,7 @@
 import type { Status, StatusUpdate } from "../types";
 import type { City, JourneyResponse, SleepResponse, Settings } from "../types";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || window.location.origin;
+const API_BASE_URL = window.location.origin;
 
 const HIDE = (import.meta.env.VITE_HIDE_CITIES ?? "false") === "true";
 
