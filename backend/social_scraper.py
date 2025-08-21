@@ -14,7 +14,7 @@ routes here. They can be imported by a scheduler/background task. Logic:
 
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List
 
 
@@ -81,14 +81,30 @@ def _run_actor(actor_id: str, run_input: dict[str, Any]) -> List[dict[str, Any]]
 
 
 def _filter_since(items: List[dict[str, Any]], dt: datetime, time_key: str) -> List[dict[str, Any]]:
+    """Return items whose **time_key** ISO timestamp is >= **dt**.
+
+    Handles comparisons safely between offset-aware and offset-naive datetimes by
+    normalising both to *naive UTC* before comparison.
+    """
+
+    # Normalise **dt** to naive UTC
+    if dt.tzinfo is not None:
+        dt_cmp = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    else:
+        dt_cmp = dt
+
     res = []
     for it in items:
-        ts_raw = it.get(time_key)  # Expect ISO string
+        ts_raw = it.get(time_key)  # Expect ISO-8601 string
         if not ts_raw:
             continue
         try:
-            ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
-            if ts >= dt:
+            ts_dt = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+            # Normalise ts_dt
+            if ts_dt.tzinfo is not None:
+                ts_dt = ts_dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+            if ts_dt >= dt_cmp:
                 res.append(it)
         except ValueError:
             continue
@@ -98,38 +114,135 @@ def _filter_since(items: List[dict[str, Any]], dt: datetime, time_key: str) -> L
 # ------------------ Platform functions ------------------
 
 def search_instagram(term: str, since: datetime) -> List[dict[str, Any]]:
-    """Return Instagram posts mentioning **term** created after **since** UTC."""
-    input_payload = {
-        "search": term,
-        "resultsLimit": 100,
-        "resultsType": "posts",   # Valid values: posts|comments|details|mentions|stories
-        "addLocations": True,
-    }
+    """Return Instagram posts for **term** newer than **since** (UTC).
+
+    The Apify Instagram scraper actor supports *multiple* input styles. To reduce
+    noise we now switch to using **directUrls** that point to the tagged feed of
+    the profile we care about (e.g. `https://www.instagram.com/ishowspeed/tagged/`).
+
+    Steps:
+    1. Extract the first token that looks like an Instagram handle (leading `@`).
+    2. Build the `/tagged/` feed URL for that handle and pass it in `directUrls`.
+    3. Supply `onlyPostsNewerThan` (ISO 8601) so the actor pre-filters.
+    4. Keep `resultsLimit` and `resultsType` as before.
+    5. Down-stream keyword filtering happens via `_contains_keywords` so we don't
+       need the actor to do any full-text filtering.
+    """
+
+    parts = term.split()
+    handle = None
+    for p in parts:
+        if p.startswith("@"):
+            handle = p.lstrip("@")
+            break
+
+    if not handle:
+        # Fallback to old search behaviour
+        input_payload = {
+            "search": term,
+            "resultsLimit": 100,
+            "resultsType": "posts",
+            "addLocations": True,
+        }
+    else:
+        url = f"https://www.instagram.com/{handle}/tagged/"
+        input_payload = {
+            "directUrls": [url],
+            "onlyPostsNewerThan": since.isoformat(),
+            "resultsLimit": 100,
+            "resultsType": "posts",
+            "searchLimit": 1,
+            # Keep optional flags explicit for clarity
+            "addParentData": False,
+            "enhanceUserSearchWithFacebookPage": False,
+            "isUserReelFeedURL": False,
+            "isUserTaggedFeedURL": True,
+        }
+
     raw = _run_actor(INSTAGRAM_ACTOR, input_payload)
     return _filter_since(raw, since, "timestamp")
 
 
 def search_tiktok(term: str, since: datetime) -> List[dict[str, Any]]:
-    """Return TikTok posts mentioning **term** created after **since** UTC."""
+    """Return TikTok posts newer than **since** for the given **term**.
+
+    Similar strategy to Instagram: if we detect a profile handle in the term we
+    convert it into a direct profile URL and rely on the actor's
+    `onlyPostsNewerThan` field for server-side date filtering. Otherwise we fall
+    back to keyword search.
+    """
+
+    # The TikTok scraper actor now expects parameters structured around
+    # `searchQueries` rather than profile URLs. We construct a single search
+    # query combining the handle (without @) and any additional keywords so the
+    # actor can return up-to-date videos. Date filtering is still handled
+    # client-side via `_filter_since` because the actor does not expose a
+    # server-side date parameter.
+
+    parts = term.split()
+    handle = ""
+    if parts and parts[0].startswith("@"):
+        handle = parts[0].lstrip("@")
+        parts = parts[1:]
+
+    # Compose the final query string.
+    query_str = " ".join([handle] + parts).strip()
+    if not query_str:
+        query_str = term.lstrip("@")  # Fallback to original string minus @
+
     input_payload = {
-        "search": term,
-        "resultsLimit": 100,
-        "resultsType": "recent",
+        "searchQueries": [query_str],
+        "searchSection": "/video",  # Fetch videos tab results
+        "resultsPerPage": 100,
+        "excludePinnedPosts": False,
+        "scrapeRelatedVideos": False,
+        "shouldDownloadVideos": False,
+        "shouldDownloadCovers": False,
+        "shouldDownloadAvatars": False,
+        "shouldDownloadMusicCovers": False,
+        "shouldDownloadSlideshowImages": False,
+        "shouldDownloadSubtitles": False,
+        "proxyCountryCode": "None",
     }
+
     raw = _run_actor(TIKTOK_ACTOR, input_payload)
     return _filter_since(raw, since, "createTimeISO")
 
 
 def search_twitter(term: str, since: datetime) -> List[dict[str, Any]]:
-    """Return tweets mentioning **term** created after **since** UTC."""
-    # Apidojo tweet-scraper expects 'author' (without @) or 'query' param
-    handle = term.lstrip("@")
+    """Return tweets matching **term** (full-text query) created after **since** UTC."""
+    # The Apify tweet-scraper actor supports a `query` parameter for standard
+    # Twitter search operators. This allows us to pass the full term – including
+    # profile handles, city names, and keywords – rather than being limited to a
+    # single *author* handle.
+
+    # Updated per user request: place the Twitter handle in the `mentioning`
+    # parameter, and pass the remaining city/state keywords via `searchTerms`.
+
+    # The incoming `term` is of the form "@handle <kw1> <kw2> ...". Split it so
+    # that `handle` goes to `mentioning` (without the leading "@") and the
+    # rest become a single search string in `searchTerms` (if any).
+
+    parts = term.split()
+    handle = parts[0].lstrip("@") if parts else ""
+    keyword_query = " ".join(parts[1:]) if len(parts) > 1 else ""
+
     input_payload = {
-        "author": handle,
-        "maxTweets": 100,
+        "mentioning": handle or None,
+        "searchTerms": [keyword_query] if keyword_query else [],
+        "maxItems": 100,
+        "start": since.strftime("%Y-%m-%d"),
     }
+
     raw = _run_actor(TWITTER_ACTOR, input_payload)
-    return _filter_since(raw, since, "created_at" if raw else "createdAt")
+
+    # The actor may emit either `created_at` (snake) or `createdAt` (camel)
+    # depending on its version. Choose whichever exists in the first item.
+    time_key = "created_at"
+    if raw and "createdAt" in raw[0]:
+        time_key = "createdAt"
+
+    return _filter_since(raw, since, time_key)
 
 
 # ------------------ Public API ------------------

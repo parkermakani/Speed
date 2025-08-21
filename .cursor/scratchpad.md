@@ -368,7 +368,15 @@ replit.nix
 |- [in_progress] 20g. Security Rules – write Firestore and Storage rules.
 |- [in_progress] 20h. Testing & CI – add unit tests mocking Firebase Admin SDK, Vitest tests for auth flow, CI to spin up emulators.
 |- [ ] 21. City marker popup overlay (frontend)
-|- [ ] 22. Social media scraping – Apify debug - 22a. Verify `APIFY_TOKEN` env variable is present in deployment & local `.env`; log Apify client initialisation status. - 22b. Confirm `instagramUsername` / `twitterUsername` fields exist in Firestore `settings/globals`; scheduler should pass them to scraper; add unit test for settings retrieval. - 22c. Add verbose logging to `backend/social_scraper.py` (\_run_actor, search functions) to output run input payload and dataset item counts. - 22d. Create CLI/debug script (or pytest) that invokes `scrape_city_posts` for a known city and prints number of posts; iterate on query formatting (remove leading `@` if needed, adjust keywords) until >0 results. - 22e. Ensure `filter_since` correctly parses `lastCurrentAt`; write unit test with sample ISO strings. - Success: Running `scrape_current_city_job` for a city with recent posts saves ≥1 post document to `cities/{id}/posts`; logs show non-zero items fetched from Apify IG/TikTok actors.
+|- [ ] 22. Social media scraping – Apify debug
+
+- ✅ 22a. APIFY_TOKEN available locally; Apify client initialised successfully (see verbose logs).
+- ✅ 22b. Firestore `settings/globals` contains `instagramUsername` / `twitterUsername`; scheduler now receives them.
+- ✅ 22c. Added verbose logging in `backend/social_scraper.py` (`_run_actor`, platform helpers) to print payload + fetched counts.
+- ✅ 22d. Created `backend/scripts/debug_scrape_city.py`; running for Baton Rouge (`id 18`) fetches IG:1, TT:0, TW:10 raw items → filtered 0 (needs tuning).
+- ⏳ 22e. Investigate `filter_since` parsing & keyword filter; add unit tests for ISO strings and `_contains_keywords`.
+- ⏳ 22f. Refine Twitter search to use `query` param with city keywords or adjust author param; expect ≥1 post retained.
+- Success: Scheduled job (`scrape_current_city_job`) persists ≥1 post to `cities/{id}/posts` and logs counts.
 
 ### Current Status / Progress Tracking
 
@@ -376,6 +384,7 @@ replit.nix
 |- 🛠️ Task 20e: Added `backend/firestore_repo.py`; refactored `/api/status` GET & POST to use Firestore. Next: refactor `/cities`, `/journey`, `/sleep` endpoints.
 |- ✅ Task 20b complete: Front-end AuthProvider & AdminLogin now use Firebase. Manual test pending but code compiles.
 |- 🛠️ Started task 20c: Updated `backend/auth.py` to verify ID tokens via Firebase Admin and changed protected route dependency. Deprecated old /api/auth/login/logout endpoints in `backend/main.py`.
+|- 🐞 Task 22 progress: Debug run produced IG:1, TW:10 raw posts but 0 after filtering; needs filter & search refinement (see Task 22e–22f).
 
 ### Executor's Feedback or Assistance Requests
 
@@ -383,6 +392,7 @@ replit.nix
 - Place the JSON somewhere outside the repo and set `FIREBASE_SERVICE_ACCOUNT_JSON` in your `.env` to its absolute path.
 - Fill in the VITE*FIREBASE*\* variables in `.env` with values from **Project Settings → General → Your apps**.
 - Let me know when credentials are in place so I can run the project locally and confirm successful initialisation before proceeding to frontend auth (task 20b).
+- Please verify that the _current city_ document has an accurate `lastCurrentAt` ISO timestamp (e.g., within the last 48 h) so filters do not exclude valid posts. If stale, toggle city to current again to refresh the timestamp for testing.
 
 ### Recent Enhancements (Latest Session)
 

@@ -89,6 +89,14 @@ def _profiles_from_settings(settings: dict[str, Any]) -> List[str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Debug scrape social posts for a city", parents=[parser_global])
     parser.add_argument("--city", type=int, help="City document ID to scrape (defaults to current city)")
+    # When set, the script will *not* execute Apify actors. Instead it will print
+    # the exact actor ID and payload that would be sent for every platform
+    # search, allowing inspection of search term construction.
+    parser.add_argument(
+        "--show-payloads",
+        action="store_true",
+        help="Print the actor payloads only (dry-run), do not fetch posts",
+    )
     args = parser.parse_args()
 
     if args.city is not None:
@@ -106,6 +114,16 @@ def main() -> None:
     settings = repo.get_settings()
     profiles = _profiles_from_settings(settings)
     logger.info("Scraping posts for city %s (id %s) using profiles %s", city.get("city"), city["id"], profiles)
+
+    if args.show_payloads:
+        # Monkey-patch social_scraper._run_actor so that it only prints the
+        # actor ID & payload instead of invoking the network request.
+
+        def _echo_run_actor(actor_id: str, run_input: dict[str, Any]):  # type: ignore
+            logger.info("[DRY-RUN] Would call actor %s with payload: %s", actor_id, run_input)
+            return []
+
+        social_scraper._run_actor = _echo_run_actor  # type: ignore
 
     posts = social_scraper.scrape_city_posts(city, profiles=profiles)
     logger.info("Fetched %d posts", len(posts))
