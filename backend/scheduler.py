@@ -37,6 +37,9 @@ async def scrape_current_city_job():
         profiles.append(settings["instagramUsername"])
     if settings.get("twitterUsername"):
         profiles.append(settings["twitterUsername"])
+    if settings.get("tiktokUsername"):
+        profiles.append(settings["tiktokUsername"])
+    logger.debug("Profiles to scrape: %s", profiles)
 
     posts = social_scraper.scrape_city_posts(current, profiles=profiles)
     if posts:

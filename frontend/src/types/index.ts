@@ -49,6 +49,7 @@ export interface Settings {
   socialScrapeIntervalMin: number;
   instagramUsername: string;
   twitterUsername: string;
+  tiktokUsername: string;
   twitchUsername: string;
   youtubeUsername: string;
 }

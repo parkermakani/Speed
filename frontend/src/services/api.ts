@@ -1,7 +1,14 @@
 import type { Status, StatusUpdate } from "../types";
 import type { City, JourneyResponse, SleepResponse, Settings } from "../types";
 
-const API_BASE_URL = window.location.origin;
+// Determine base URL for API calls.
+// Use explicit VITE_API_BASE_URL when provided (handy for local dev when the
+// frontend runs on a different port than the backend). Fallback to the current
+// origin so that production builds served by FastAPI continue to work without
+// extra configuration.
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
+  window.location.origin;
 
 const HIDE = (import.meta.env.VITE_HIDE_CITIES ?? "false") === "true";
 

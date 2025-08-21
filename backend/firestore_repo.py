@@ -88,6 +88,7 @@ DEFAULT_SETTINGS = {
     "socialScrapeIntervalMin": 60,
     "instagramUsername": "",
     "twitterUsername": "",
+    "tiktokUsername": "",
     "twitchUsername": "",
     "youtubeUsername": "",
 }

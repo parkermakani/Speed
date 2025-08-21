@@ -65,7 +65,7 @@ export const ShopTab: React.FC<ShopTabProps> = ({ isOpen, toggle }) => {
     <div style={styles} onClick={toggle} role="button" aria-label="Toggle shop">
       {isOpen ? (
         <Icon
-          name="right-chevron"
+          name="left-chevron"
           size={32}
           stroke="var(--color-land-dark)"
           fill="transparent"

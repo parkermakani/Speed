@@ -430,3 +430,11 @@ replit.nix
 
 - 🚧 **Next**: Task 7 (Tests for backend + minimal frontend coverage)
 - 🔨 **Executor**: Backend city data layer operational; proceeding to frontend admin UI next session.
+
+#### ✅ **Shop Drawer Fixes**
+
+- Fixed back/close button inside Tour Merch drawer not closing the drawer (ensured `onClose` wiring and verified state update)
+- Switched chevron icon direction from `right-chevron` to `left-chevron` for better UX consistency (in both `Drawer` close button and `ShopTab` toggle)
+- No linter issues introduced; manual functional test pending
+
+- Fixed dev JSON parse error by reading `VITE_API_BASE_URL` in `frontend/src/services/api.ts`; falls back to `window.location.origin` for production.

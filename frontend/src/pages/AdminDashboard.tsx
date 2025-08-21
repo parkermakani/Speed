@@ -35,6 +35,7 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
     socialScrapeIntervalMin: 60,
     instagramUsername: "",
     twitterUsername: "",
+    tiktokUsername: "",
     twitchUsername: "",
     youtubeUsername: "",
   });
@@ -340,6 +341,17 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
                   setSettingsForm((p) => ({
                     ...p,
                     twitterUsername: e.target.value,
+                  }))
+                }
+              />
+            </FormField>
+            <FormField label="TikTok Username">
+              <Input
+                value={settingsForm.tiktokUsername}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    tiktokUsername: e.target.value,
                   }))
                 }
               />

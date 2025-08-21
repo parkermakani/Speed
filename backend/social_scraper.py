@@ -44,10 +44,20 @@ if not APIFY_TOKEN:
     logger.warning("APIFY_TOKEN not set – social scraping disabled")
     client = None
 else:
-    client = ApifyClient(APIFY_TOKEN) if ApifyClient else None
+    if ApifyClient is None:
+        logger.warning("apify-client library missing; install 'apify-client' to enable social scraping")
+        client = None
+    else:
+        try:
+            client = ApifyClient(APIFY_TOKEN)
+            logger.info("Apify client initialised (token length %s)", len(APIFY_TOKEN))
+        except Exception as exc:
+            logger.error("Failed to initialise Apify client: %s", exc)
+            client = None
 
 INSTAGRAM_ACTOR = os.getenv("APIFY_INSTAGRAM_ACTOR", "apify/instagram-scraper")
-TIKTOK_ACTOR = os.getenv("APIFY_TIKTOK_ACTOR", "apify/tiktok-scraper")
+TIKTOK_ACTOR = os.getenv("APIFY_TIKTOK_ACTOR", "clockworks/tiktok-scraper")
+TWITTER_ACTOR = os.getenv("APIFY_TWITTER_ACTOR", "apidojo/tweet-scraper")
 
 
 # ------------------ Core helpers ------------------
@@ -59,6 +69,7 @@ def _run_actor(actor_id: str, run_input: dict[str, Any]) -> List[dict[str, Any]]
         return []
 
     try:
+        logger.debug("Calling Apify actor %s with payload: %s", actor_id, run_input)
         run = client.actor(actor_id).call(run_input=run_input)
         dataset_id = run["defaultDatasetId"]
         items: List[dict[str, Any]] = list(client.dataset(dataset_id).iterate_items())
@@ -91,7 +102,7 @@ def search_instagram(term: str, since: datetime) -> List[dict[str, Any]]:
     input_payload = {
         "search": term,
         "resultsLimit": 100,
-        "resultsType": "recent",  # Apify IG actor param
+        "resultsType": "posts",   # Valid values: posts|comments|details|mentions|stories
         "addLocations": True,
     }
     raw = _run_actor(INSTAGRAM_ACTOR, input_payload)
@@ -107,6 +118,18 @@ def search_tiktok(term: str, since: datetime) -> List[dict[str, Any]]:
     }
     raw = _run_actor(TIKTOK_ACTOR, input_payload)
     return _filter_since(raw, since, "createTimeISO")
+
+
+def search_twitter(term: str, since: datetime) -> List[dict[str, Any]]:
+    """Return tweets mentioning **term** created after **since** UTC."""
+    # Apidojo tweet-scraper expects 'author' (without @) or 'query' param
+    handle = term.lstrip("@")
+    input_payload = {
+        "author": handle,
+        "maxTweets": 100,
+    }
+    raw = _run_actor(TWITTER_ACTOR, input_payload)
+    return _filter_since(raw, since, "created_at" if raw else "createdAt")
 
 
 # ------------------ Public API ------------------
@@ -151,6 +174,7 @@ def scrape_city_posts(city: dict[str, Any], profiles: List[str] | None = None) -
         query = f"@{profile} {' '.join(keywords)}"
         results.extend(search_instagram(query, since_dt))
         results.extend(search_tiktok(query, since_dt))
+        results.extend(search_twitter(query, since_dt))
 
     # Deduplicate by platform+id
     seen = set()

@@ -177,7 +177,7 @@ export const Drawer: React.FC<DrawerProps> = ({
             aria-label="Close"
           >
             <Icon
-              name="right-chevron"
+              name="left-chevron"
               size={28}
               stroke="var(--color-land-dark)"
               fill="transparent"

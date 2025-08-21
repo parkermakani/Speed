@@ -528,29 +528,6 @@ async def manual_scrape(city_id: int, current_admin=Depends(get_current_admin)):
     return {"saved": len(posts)}
 
 
-# -------------------- Static Files (SPA fallback) --------------------
-# Register API router FIRST (at /api/*) so it has priority.
-
-app.include_router(api)
-
-# Attempt to serve compiled frontend if it exists. This works both locally and on Replit
-frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
-
-if os.path.isdir(frontend_dist):
-    # Mount under root with HTML fallback – Starlette will serve index.html automatically
-    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
-
-    # Extra catch-all in case Starlette’s html=True ever returns 404 (e.g., unusual Accept header)
-    index_path = os.path.join(frontend_dist, "index.html")
-
-    @app.exception_handler(404)
-    async def spa_404_handler(request, exc):
-        # If the path starts with /api return normal 404
-        if request.url.path.startswith("/api"):
-            return exc  # default JSON 404 response
-        return FileResponse(index_path)
-# --------------------------------------------------------------------
-
 # -------------------- Settings endpoints --------------------
 
 
@@ -563,6 +540,7 @@ class SettingsUpdate(SQLModel):
     socialScrapeIntervalMin: int | None = None
     instagramUsername: str | None = None
     twitterUsername: str | None = None
+    tiktokUsername: str | None = None
     twitchUsername: str | None = None
     youtubeUsername: str | None = None
 
@@ -574,8 +552,27 @@ async def update_settings(payload: SettingsUpdate, current_admin=Depends(get_cur
     reload_settings()
     return updated
 
-# finally register router
+# --------------------------------------------------------------------
+# Register API routes and mount frontend SPA
+
 app.include_router(api)
+
+frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+
+if os.path.isdir(frontend_dist):
+    # Mount at root so non-API paths serve the built frontend
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
+
+    # Fallback: serve index.html for unknown non-API routes (client-side routing)
+    index_path = os.path.join(frontend_dist, "index.html")
+
+    @app.exception_handler(404)
+    async def spa_404_handler(request, exc):
+        if request.url.path.startswith("/api"):
+            return exc  # Propagate JSON 404 for API routes
+        return FileResponse(index_path)
+
+# --------------------------------------------------------------------
 
 if __name__ == "__main__":
     import uvicorn
