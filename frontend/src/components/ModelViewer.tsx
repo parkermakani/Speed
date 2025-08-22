@@ -70,16 +70,15 @@ function SpeedModel({
     // Development debug: log meshes/materials/textures to find base shirt texture name
     if (process.env.NODE_ENV !== "production" && root.current) {
       console.group("[ModelViewer] Material debug");
-      root.current.traverse((obj: THREE.Object3D) => {
-        if (obj.isMesh && obj.material) {
-          const mat = obj.material;
-          console.log(
-            `mesh=%s  material=%s  map=%s`,
-            obj.name,
-            mat.name,
-            mat.map?.name ?? "(none)"
-          );
-        }
+      root.current.traverse((o: THREE.Object3D) => {
+        if (!(o instanceof THREE.Mesh)) return;
+        const mat = o.material as THREE.MeshStandardMaterial;
+        console.log(
+          `mesh=%s  material=%s  map=%s`,
+          o.name,
+          mat.name,
+          (mat.map as any)?.name ?? "(none)"
+        );
       });
       console.groupEnd();
     }
@@ -105,37 +104,34 @@ function SpeedModel({
   // Shirt material logic
   useEffect(() => {
     if (!root.current) return;
-    root.current.traverse((obj) => {
-      // @ts-ignore
-      if (obj.isMesh && obj.material) {
-        const matName = obj.material.name?.toLowerCase?.() ?? "";
-        const meshName = obj.name?.toLowerCase?.() ?? "";
-        const isShirt = matName.includes("shirt") || meshName.includes("shirt");
-        if (!isShirt) return;
-
-        // @ts-ignore
-        const mat = obj.material as THREE.MeshStandardMaterial;
-        if (!shirtTexture) {
-          obj.visible = false;
-        } else {
-          obj.visible = true;
-          // clear existing map while loading
-          if (mat.map) mat.map.dispose();
-          mat.map = null;
-          mat.needsUpdate = true;
-          texLoader.load(
-            shirtTexture,
-            (t) => {
-              t.flipY = false;
-              t.encoding = THREE.sRGBEncoding;
-              mat.map = t;
-              mat.needsUpdate = true;
-              console.log("Applied new shirt texture", shirtTexture);
-            },
-            undefined,
-            (err) => console.error("Failed to load shirt texture", err)
-          );
-        }
+    root.current.traverse((o: THREE.Object3D) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      const mesh = o as THREE.Mesh;
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      const matName = (mat.name || "").toLowerCase();
+      const isShirt =
+        matName.includes("shirt") || mesh.name.toLowerCase().includes("shirt");
+      if (!isShirt) return;
+      if (!shirtTexture) {
+        mesh.visible = false;
+      } else {
+        mesh.visible = true;
+        if (mat.map) mat.map.dispose();
+        mat.map = null;
+        mat.needsUpdate = true;
+        texLoader.load(
+          shirtTexture,
+          (t) => {
+            t.flipY = false;
+            // for three@0.152+ use colorSpace instead of encoding
+            (t as any).colorSpace = THREE.SRGBColorSpace;
+            mat.map = t;
+            mat.needsUpdate = true;
+            console.log("Applied new shirt texture", shirtTexture);
+          },
+          undefined,
+          (err) => console.error("Failed to load shirt texture", err)
+        );
       }
     });
   }, [shirtTexture, texLoader]);
