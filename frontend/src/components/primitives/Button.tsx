@@ -10,6 +10,7 @@ interface ButtonProps {
   type?: "button" | "submit" | "reset";
   onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 export function Button({
