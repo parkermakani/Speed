@@ -7,6 +7,7 @@ import rightChevronSvg from "../../assets/Icons/right-chevron.svg?raw";
 import settingsSvg from "../../assets/Icons/settings.svg?raw";
 import shopSvg from "../../assets/Icons/shop.svg?raw";
 import shopAlertSvg from "../../assets/Icons/shop-alert.svg?raw";
+import egoLogoSvg from "../../assets/Graphics/EgoX14Logo.svg?raw";
 
 const ICONS: Record<string, string> = {
   edit: editSvg,
@@ -15,6 +16,7 @@ const ICONS: Record<string, string> = {
   settings: settingsSvg,
   shop: shopSvg,
   "shop-alert": shopAlertSvg,
+  "ego-logo": egoLogoSvg,
 };
 
 interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
