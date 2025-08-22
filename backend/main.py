@@ -35,6 +35,8 @@ class MerchCreate(SQLModel):
     imageUrl: str
     url: str | None = None
     active: bool = True
+    shirtTexture: str | None = None
+    defaultAnimation: str | None = None
 
 
 class MerchUpdate(SQLModel):
@@ -43,6 +45,8 @@ class MerchUpdate(SQLModel):
     imageUrl: str | None = None
     url: str | None = None
     active: bool | None = None
+    shirtTexture: str | None = None
+    defaultAnimation: str | None = None
 
 
 # (duplicate merch endpoints removed; real ones are defined later after api init)
@@ -477,6 +481,8 @@ class MerchCreate(SQLModel):
     imageUrl: str
     url: str | None = None
     active: bool = True
+    shirtTexture: str | None = None
+    defaultAnimation: str | None = None
 
 
 class MerchUpdate(SQLModel):
@@ -485,6 +491,8 @@ class MerchUpdate(SQLModel):
     imageUrl: str | None = None
     url: str | None = None
     active: bool | None = None
+    shirtTexture: str | None = None
+    defaultAnimation: str | None = None
 
 
 @api.get("/merch")
@@ -494,13 +502,16 @@ async def list_merch():
 
 @api.post("/merch")
 async def create_merch(item: MerchCreate, current_admin=Depends(get_current_admin)):
-    return repo.create_merch(item.dict())
+    data = item.dict(exclude_unset=True)
+    created = repo.create_merch(data)
+    return created
 
 
 @api.put("/merch/{item_id}")
 async def modify_merch(item_id: str, payload: MerchUpdate, current_admin=Depends(get_current_admin)):
-    data = {k: v for k, v in payload.dict().items() if v is not None}
-    return repo.update_merch(item_id, data)
+    data = payload.dict(exclude_unset=True)
+    updated = repo.update_merch(item_id, data)
+    return updated
 
 
 @api.get("/cities/{city_id}/posts")

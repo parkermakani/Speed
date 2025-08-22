@@ -105,7 +105,7 @@ A mobile-first React web app that shows a Mapbox map centered on a live location
     - Render city polygon layer with animated opacity cycle to mimic pulsing; remove old 1-mile radius.
     - Success: Selected city boundary pulses softly, performance ≥30 fps on mobile.
 
-12. 3D model marker
+12. 3D marker model
 
     - Integrate a GLTF/Three.js custom layer anchored at current location.
     - Ensure model scales with zoom and responds to map pitch/bearing.
@@ -247,6 +247,37 @@ A mobile-first React web app that shows a Mapbox map centered on a live location
 - 22i. **Testing & docs**: Unit tests mocking Apify responses, integration tests for endpoint, Vitest tests for gallery rendering; update README/env docs (`APIFY_TOKEN`, `SOCIAL_SCRAPE_INTERVAL_MIN`, `SOCIAL_PROFILES`).
 - **Success**: After toggling a city to current, within the configured interval its popup shows a gallery of relevant IG/TikTok posts; tests pass and manual spot-check shows accuracy.
 
+23. Lightweight 3D Model Viewer (SpeedLowPoly + animation selector)
+
+    - 23a. **Asset Preparation**: Use the new `assets/3D/SpeedLowPoly.glb` (already low-poly with baked animation). Verify file ≤5 MB; if larger, consider Draco compression via `gltf-pipeline`.
+    - 23b. **Viewer Refactor**: Update `ModelViewer.tsx` to default to this GLB and expose available animations via `useAnimations`. Accept props:
+      • `initialAnimation?: string` (default first)
+      • `onAnimationChange?(name: string)`
+    - 23c. **Animation Switching UI**: Add a small segmented control/drop-down inside `Merch.tsx` (desktop) or below canvas (mobile) listing animation clips (e.g., "Idle", "Wave", "Ride"). Switching updates `actions[current].play()` and fades out previous.
+    - 23d. **Progressive Loading**: Show static PNG placeholder (existing `SpeedMotorcycle_00000.png`) wrapped in `Suspense` fallback; display load % via `useProgress` in dev mode.
+    - 23e. **Performance Budget**: TTI impact ≤100 ms, memory ≤20 MB on simulated mid-range mobile. Document Lighthouse numbers in PR description.
+    - 23f. **Testing**: Vitest test mounts viewer, waits for GLTF loader promise resolve, and asserts that animation mixer exists. Test animation switch triggers `play` on new action without console errors.
+    - 23g. **Clothing Variants Pipeline**:
+      • Export **shirtless base model** (`SpeedLowPoly_Base.glb`) but KEEP a distinct skinned **shirt mesh** whose material is named `ShirtMaterial`. Leave its texture slot empty or a neutral placeholder.
+      • For each merch design, export a **texture PNG (or jpg, KTX2)** named `<sku>_Shirt_Diffuse.png` sized ≤1 k px, targeting the UVs of `ShirtMaterial`.
+      • Optimise textures via `squoosh-cli --mozjpeg` or Basis/KTX2 if GPU compression desired; place outputs in `assets/3D/shirts/`.
+    - 23h. **Viewer Clothing API**:
+      • Extend `ModelViewer.tsx` with `shirtTexture?: string` prop.
+      • On change, find the mesh whose material.name === `ShirtMaterial`.
+      • Determine shirtless state by checking if `material.map?.name === "ShitBaseTexture"` (placeholder base texture). If yes, hide: `material.transparent=true; material.opacity=0` (or `mesh.visible=false`).
+      • When a merch texture is provided, load with `TextureLoader` (or `useTexture`), assign to `material.map`, restore opacity/visibility, and set `material.needsUpdate = true`. Optionally fade between textures.
+    - 23i. **Animation System**:
+      • Use `useAnimations` from `@react-three/drei` to bind clips returned by `useGLTF`.
+      • Build an `animationNames` array from `clips.map(c => c.name)`; default play first clip.
+      • Expose `currentAnimation` and `setAnimation` via component props OR internal state + UI (segmented control/drop-down).
+      • When animation changes: `actions[prev].fadeOut(0.2); actions[next].reset().fadeIn(0.2).play();`.
+    - 23j. **Merch Drawer Integration**:
+      • Ensure each merch document in Firestore includes `shirtTexture` (relative URL like `shirts/<sku>_Shirt_Diffuse.png`) and optional `defaultAnimation`.
+      • Update `services/api.ts` merch fetch to include this field; extend `MerchItem` TypeScript type accordingly.
+      • `Merch.tsx`: on merch card click, pass `item.shirtTexture` to `<ModelViewer shirtTexture={...} />`; also switch animation if `defaultAnimation` present.
+    - 23k. **Testing**: Unit test texture swap updates `material.map.uuid` and animation switch triggers new clip without console errors.
+    - **Success**: Viewer loads base model; texture swap on shirt mesh works instantly when merch clicked; user can switch among available animation clips; performance budgets intact; tests & lints pass.
+
 ### .gitignore (draft)
 
 ```
@@ -369,14 +400,7 @@ replit.nix
 |- [in_progress] 20h. Testing & CI – add unit tests mocking Firebase Admin SDK, Vitest tests for auth flow, CI to spin up emulators.
 |- [ ] 21. City marker popup overlay (frontend)
 |- [ ] 22. Social media scraping – Apify debug
-
-- ✅ 22a. APIFY_TOKEN available locally; Apify client initialised successfully (see verbose logs).
-- ✅ 22b. Firestore `settings/globals` contains `instagramUsername` / `twitterUsername`; scheduler now receives them.
-- ✅ 22c. Added verbose logging in `backend/social_scraper.py` (`_run_actor`, platform helpers) to print payload + fetched counts.
-- ✅ 22d. Created `backend/scripts/debug_scrape_city.py`; running for Baton Rouge (`id 18`) fetches IG:1, TT:0, TW:10 raw items → filtered 0 (needs tuning).
-- ⏳ 22e. Investigate `filter_since` parsing & keyword filter; add unit tests for ISO strings and `_contains_keywords`.
-- ⏳ 22f. Refine Twitter search to use `query` param with city keywords or adjust author param; expect ≥1 post retained.
-- Success: Scheduled job (`scrape_current_city_job`) persists ≥1 post to `cities/{id}/posts` and logs counts.
+|- [ ] 23. Lightweight 3D Model Viewer (SpeedLowPoly + animation selector)
 
 ### Current Status / Progress Tracking
 

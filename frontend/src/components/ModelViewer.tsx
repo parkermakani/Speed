@@ -1,29 +1,155 @@
-import React, { Suspense, useMemo } from "react";
+import React, { Suspense, useEffect, useMemo, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, useGLTF } from "@react-three/drei";
+import {
+  OrbitControls,
+  useAnimations,
+  useGLTF,
+  Html,
+  useProgress,
+} from "@react-three/drei";
+import * as THREE from "three";
 
-import speedPinUrl from "../assets/3D/SpeedPin.glb";
+import baseModelUrl from "../assets/3D/SpeedLowPoly_Base.glb";
 
 interface ModelViewerProps {
   /** Height of the viewer (number = px or CSS string). Defaults to 260. */
   height?: number | string;
   /** Disable interactive orbit controls. */
   disableControls?: boolean;
+  /** Optional shirt texture URL (relative import or runtime). */
+  shirtTexture?: string;
+  /** Animation clip name to play (defaults to first) */
+  animation?: string;
+  onAnimationsLoaded?: (names: string[]) => void;
 }
 
-function SpeedPinModel() {
-  // useGLTF caches by URL under the hood.
+function Loader() {
+  const { progress } = useProgress();
+  return (
+    <Html center style={{ pointerEvents: "none" }}>
+      <div
+        style={{
+          background: "rgba(0,0,0,0.6)",
+          color: "white",
+          padding: "4px 8px",
+          borderRadius: 4,
+          fontSize: 12,
+        }}
+      >
+        Loading {progress.toFixed(0)}%
+      </div>
+    </Html>
+  );
+}
+
+function SpeedModel({
+  shirtTexture,
+  animation,
+  onAnimationsLoaded,
+}: {
+  shirtTexture?: string;
+  animation?: string;
+  onAnimationsLoaded?: (names: string[]) => void;
+}) {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore – drei types expect fixed string literal but runtime allows string
-  const { scene } = useGLTF(speedPinUrl);
-  return <primitive object={scene} scale={2.0} />;
+  // @ts-ignore – drei loader accepts string
+  const gltf = useGLTF(baseModelUrl);
+  const texLoader = useMemo(() => {
+    const l = new THREE.TextureLoader();
+    l.crossOrigin = "anonymous";
+    return l;
+  }, []);
+
+  const root = useRef<THREE.Group>(null);
+  const { actions, names } = useAnimations(gltf.animations, root);
+
+  // Expose available names once
+  useEffect(() => {
+    if (onAnimationsLoaded) onAnimationsLoaded(names);
+
+    // Development debug: log meshes/materials/textures to find base shirt texture name
+    if (process.env.NODE_ENV !== "production" && root.current) {
+      console.group("[ModelViewer] Material debug");
+      root.current.traverse((obj: THREE.Object3D) => {
+        if (obj.isMesh && obj.material) {
+          const mat = obj.material;
+          console.log(
+            `mesh=%s  material=%s  map=%s`,
+            obj.name,
+            mat.name,
+            mat.map?.name ?? "(none)"
+          );
+        }
+      });
+      console.groupEnd();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Handle animation changes
+  useEffect(() => {
+    if (!names.length) return;
+    const toPlay =
+      animation && names.includes(animation) ? animation : names[0];
+    names.forEach((n) => {
+      const action = actions[n];
+      if (!action) return;
+      if (n === toPlay) {
+        action.reset().fadeIn(0.2).play();
+      } else {
+        action.fadeOut(0.2);
+      }
+    });
+  }, [animation, actions, names]);
+
+  // Shirt material logic
+  useEffect(() => {
+    if (!root.current) return;
+    root.current.traverse((obj) => {
+      // @ts-ignore
+      if (obj.isMesh && obj.material) {
+        const matName = obj.material.name?.toLowerCase?.() ?? "";
+        const meshName = obj.name?.toLowerCase?.() ?? "";
+        const isShirt = matName.includes("shirt") || meshName.includes("shirt");
+        if (!isShirt) return;
+
+        // @ts-ignore
+        const mat = obj.material as THREE.MeshStandardMaterial;
+        if (!shirtTexture) {
+          obj.visible = false;
+        } else {
+          obj.visible = true;
+          // clear existing map while loading
+          if (mat.map) mat.map.dispose();
+          mat.map = null;
+          mat.needsUpdate = true;
+          texLoader.load(
+            shirtTexture,
+            (t) => {
+              t.flipY = false;
+              t.encoding = THREE.sRGBEncoding;
+              mat.map = t;
+              mat.needsUpdate = true;
+              console.log("Applied new shirt texture", shirtTexture);
+            },
+            undefined,
+            (err) => console.error("Failed to load shirt texture", err)
+          );
+        }
+      }
+    });
+  }, [shirtTexture, texLoader]);
+
+  return <primitive ref={root} object={gltf.scene} scale={1.8} />;
 }
 
 export const ModelViewer: React.FC<ModelViewerProps> = ({
-  height = 260,
+  height = "90%",
   disableControls = false,
+  shirtTexture,
+  animation,
+  onAnimationsLoaded,
 }) => {
-  // Determine whether user prefers reduced motion (memoized).
   const prefersReducedMotion = useMemo(() => {
     return (
       typeof window !== "undefined" &&
@@ -38,34 +164,28 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         height,
         borderRadius: "var(--radius-lg, 12px)",
         overflow: "hidden",
-        background: "linear-gradient(135deg, #0A3161 0%, #B31942 100%)", // Liberty blue → Freedom red
+        background: "linear-gradient(135deg, #0A3161 0%, #B31942 100%)",
       }}
     >
-      <Canvas camera={{ position: [0, 1, 2] }}>
-        {/* Lighting */}
+      <Canvas camera={{ position: [0, 2, 4] }}>
         <ambientLight intensity={0.5} />
         <directionalLight position={[3, 2, 1]} intensity={0.8} />
-
-        <Suspense fallback={null}>
-          <SpeedPinModel />
+        <Suspense fallback={<Loader />}>
+          <SpeedModel
+            shirtTexture={shirtTexture}
+            animation={animation}
+            onAnimationsLoaded={onAnimationsLoaded}
+          />
         </Suspense>
-
-        {/* Interactive controls unless reduced motion preferred or explicitly disabled */}
         {!disableControls && !prefersReducedMotion && (
           <OrbitControls
             enablePan={false}
             autoRotate
             autoRotateSpeed={1}
-            target={[0, 1, 0]}
+            target={[0, 2, 0]}
           />
         )}
       </Canvas>
     </div>
   );
 };
-
-// Drei GLTF loader needs this to dispose on unmount.
-// Prevents memory leak warnings during HMR.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore – `dispose` is available at runtime
-useGLTF.preload(speedPinUrl);

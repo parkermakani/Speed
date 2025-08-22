@@ -3,6 +3,7 @@ import { Card } from "./primitives/Card";
 import { Button } from "./primitives/Button";
 import { Stack } from "./primitives/Stack";
 // 3D model removed for now – placeholder only
+import { ModelViewer } from "./ModelViewer";
 import { ChromaticText } from "./ChromaticText";
 import { fetchMerch } from "../services/api";
 import type { MerchItem } from "../services/api";
@@ -30,6 +31,11 @@ const useMerch = () => {
 
 export const Merch: React.FC = () => {
   const { products, loading } = useMerch();
+  const [shirtTexture, setShirtTexture] = useState<string | undefined>(
+    undefined
+  );
+  const [animNames, setAnimNames] = useState<string[]>([]);
+  const [currentAnim, setCurrentAnim] = useState<string | undefined>(undefined);
 
   return (
     <div style={{ padding: "var(--space-6)" }}>
@@ -51,22 +57,30 @@ export const Merch: React.FC = () => {
           columnGap: "var(--space-4)",
         }}
       >
-        {/* Left: Placeholder – 3D coming soon */}
+        {/* Left: 3D viewer */}
         <div style={{ width: "100%" }}>
-          <div
-            style={{
-              width: "100%",
-              height: "260px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--color-text-secondary)",
-              background: "var(--color-bg-elevated)",
-              borderRadius: "var(--radius-lg)",
+          <ModelViewer
+            shirtTexture={shirtTexture}
+            animation={currentAnim}
+            onAnimationsLoaded={(names) => {
+              setAnimNames(names);
+              if (!currentAnim) setCurrentAnim(names[0]);
             }}
-          >
-            3D preview coming soon
-          </div>
+          />
+          {/* Simple animation selector */}
+          {animNames.length > 1 && (
+            <select
+              style={{ marginTop: "var(--space-2)", width: "100%" }}
+              value={currentAnim}
+              onChange={(e) => setCurrentAnim(e.target.value)}
+            >
+              {animNames.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Right: Products grid */}
@@ -82,7 +96,19 @@ export const Merch: React.FC = () => {
           {loading && <p>Loading…</p>}
           {!loading && products.length === 0 && <p>No products available.</p>}
           {products.map((p) => (
-            <Card key={p.id} style={{ background: "var(--color-bg-elevated)" }}>
+            <Card
+              key={p.id}
+              clickable
+              style={{
+                background: "var(--color-bg-elevated)",
+                cursor: "pointer",
+              }}
+              onClick={() => {
+                console.log("Preview merch: ", p.name, p.shirtTexture);
+                setShirtTexture(p.shirtTexture);
+                if (p.defaultAnimation) setCurrentAnim(p.defaultAnimation);
+              }}
+            >
               <img
                 src={p.imageUrl}
                 alt={p.name}
@@ -102,7 +128,10 @@ export const Merch: React.FC = () => {
                 <Button
                   variant="primary"
                   fullWidth
-                  onClick={() => window.open(p.url, "_blank")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(p.url, "_blank");
+                  }}
                 >
                   Add to Cart
                 </Button>

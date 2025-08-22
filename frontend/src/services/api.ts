@@ -144,6 +144,8 @@ export interface MerchItem {
   imageUrl: string;
   url?: string;
   active: boolean;
+  shirtTexture?: string; // texture file path for model viewer
+  defaultAnimation?: string;
 }
 
 export async function fetchMerch(): Promise<MerchItem[]> {

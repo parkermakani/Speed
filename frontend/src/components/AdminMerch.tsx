@@ -18,6 +18,7 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
   const [items, setItems] = useState<MerchItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const texturePath = "merch/shirtTextures";
 
   const load = async () => {
     try {
@@ -40,21 +41,37 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
   };
 
   // ---------- Add / Edit Form ----------
-  const [form, setForm] = useState({
+  type FormState = {
+    name: string;
+    price: string;
+    url: string;
+    imageFile: File | null;
+    textureFile: File | null;
+    defaultAnimation: string;
+  };
+  const emptyForm: FormState = {
     name: "",
     price: "",
     url: "",
-    imageFile: null as File | null,
-  });
+    imageFile: null,
+    textureFile: null,
+    defaultAnimation: "",
+  };
+
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     setForm((f) => ({ ...f, imageFile: file }));
   };
+  const handleTextureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setForm((f) => ({ ...f, textureFile: file }));
+  };
 
-  const resetForm = () =>
-    setForm({ name: "", price: "", url: "", imageFile: null });
+  const resetForm = () => setForm(emptyForm);
 
   const handleSubmit = async () => {
     if (!token) return;
@@ -73,19 +90,47 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
         await uploadBytes(storageRef, form.imageFile);
         imageUrl = await getDownloadURL(storageRef);
       }
+      let shirtTexture = "";
+      if (form.textureFile) {
+        const texRef = ref(
+          firebaseStorage,
+          `${texturePath}/${Date.now()}_${form.textureFile.name}`
+        );
+        await uploadBytes(texRef, form.textureFile);
+        shirtTexture = await getDownloadURL(texRef);
+      }
 
-      await createMerch(
-        {
-          name: form.name,
-          price: form.price,
-          url: form.url,
-          imageUrl,
-          active: true,
-        },
-        token
-      );
+      if (editingId) {
+        // update existing
+        await updateMerch(
+          editingId,
+          {
+            name: form.name,
+            price: form.price,
+            url: form.url,
+            ...(imageUrl && { imageUrl }),
+            ...(shirtTexture && { shirtTexture }),
+            defaultAnimation: form.defaultAnimation || undefined,
+          },
+          token
+        );
+      } else {
+        await createMerch(
+          {
+            name: form.name,
+            price: form.price,
+            url: form.url,
+            imageUrl,
+            shirtTexture,
+            defaultAnimation: form.defaultAnimation || undefined,
+            active: true,
+          },
+          token
+        );
+      }
       resetForm();
       setShowForm(false);
+      setEditingId(null);
       await load();
     } catch (e) {
       alert("Failed to create merch");
@@ -152,6 +197,22 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
                   onChange={handleFileChange}
                 />
               </FormField>
+              <FormField label="Shirt Texture (PNG/JPG)">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleTextureChange}
+                />
+              </FormField>
+              <FormField label="Default Animation Clip">
+                <Input
+                  value={form.defaultAnimation}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, defaultAnimation: e.target.value }))
+                  }
+                  fullWidth
+                />
+              </FormField>
 
               <Stack direction="row" spacing="sm" justify="end">
                 <Button
@@ -186,6 +247,8 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
                 <th>Name</th>
                 <th>Price</th>
                 <th>Active</th>
+                <th>Preview Img</th>
+                <th>Shirt Texture</th>
                 <th></th>
               </tr>
             </thead>
@@ -199,12 +262,105 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
                   <td>{it.price}</td>
                   <td>{it.active ? "Yes" : "No"}</td>
                   <td>
+                    {it.imageUrl ? (
+                      <img src={it.imageUrl} alt="prev" style={{ width: 40 }} />
+                    ) : (
+                      "--"
+                    )}
+                  </td>
+                  <td>
+                    {it.shirtTexture ? (
+                      <img
+                        src={it.shirtTexture}
+                        alt="tex"
+                        style={{ width: 40 }}
+                      />
+                    ) : (
+                      "--"
+                    )}
+                  </td>
+                  <td>
                     <Button
                       size="sm"
                       variant="secondary"
                       onClick={() => handleToggleActive(it.id, it.active)}
                     >
                       {it.active ? "Disable" : "Enable"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      style={{ marginLeft: 4 }}
+                      onClick={() => {
+                        setEditingId(it.id);
+                        setForm({
+                          name: it.name,
+                          price: it.price,
+                          url: it.url ?? "",
+                          imageFile: null,
+                          textureFile: null,
+                          defaultAnimation: it.defaultAnimation ?? "",
+                        });
+                        setShowForm(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+
+                    {/* Hidden file inputs for quick replace */}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      id={`preview-${it.id}`}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file || !token) return;
+                        const imgRef = ref(
+                          firebaseStorage,
+                          `merch/${Date.now()}_${file.name}`
+                        );
+                        await uploadBytes(imgRef, file);
+                        const url = await getDownloadURL(imgRef);
+                        await updateMerch(it.id, { imageUrl: url }, token);
+                        await load();
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      style={{ marginLeft: 4 }}
+                      onClick={() =>
+                        document.getElementById(`preview-${it.id}`)?.click()
+                      }
+                    >
+                      Upload Preview
+                    </Button>
+
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      id={`texture-${it.id}`}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file || !token) return;
+                        const texRef = ref(
+                          firebaseStorage,
+                          `${texturePath}/${Date.now()}_${file.name}`
+                        );
+                        await uploadBytes(texRef, file);
+                        const url = await getDownloadURL(texRef);
+                        await updateMerch(it.id, { shirtTexture: url }, token);
+                        await load();
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      style={{ marginLeft: 4 }}
+                      onClick={() =>
+                        document.getElementById(`texture-${it.id}`)?.click()
+                      }
+                    >
+                      Upload Texture
                     </Button>
                   </td>
                 </tr>
