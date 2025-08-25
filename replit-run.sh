@@ -13,7 +13,7 @@ echo "Building frontend..."
   cd frontend
   if [ ! -d node_modules ]; then
     echo "Installing frontend dependencies..."
-    npm ci --silent
+    npm install --silent
   fi
   npm run build --silent
 )
