@@ -1,7 +1,7 @@
 import type { TipStep } from "../types";
 
 // Helper query selectors for known targets
-const q = (sel: string) => sel;
+//const q = (sel: string) => sel;
 
 export const tipsConfig: TipStep[] = [
   {
