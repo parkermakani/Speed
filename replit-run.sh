@@ -3,6 +3,8 @@ set -e
 
 # Ensure production env flag
 export ENV=production
+# Force same-origin API in builds/runs (override any secret)
+export VITE_API_BASE_URL=
 
 # Use Replit provided port if available
 PORT=${PORT:-8000}
