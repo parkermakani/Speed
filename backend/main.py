@@ -572,7 +572,8 @@ frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"
 
 if os.path.isdir(frontend_dist):
     # Mount at root so non-API paths serve the built frontend
-    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
+    # Disable caching so index.html updates are always fetched fresh
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True, max_age=0), name="static")
 
     # Fallback: serve index.html for unknown non-API routes (client-side routing)
     index_path = os.path.join(frontend_dist, "index.html")
@@ -581,7 +582,7 @@ if os.path.isdir(frontend_dist):
     async def spa_404_handler(request, exc):
         if request.url.path.startswith("/api"):
             return exc  # Propagate JSON 404 for API routes
-        return FileResponse(index_path)
+        return FileResponse(index_path, headers={"Cache-Control": "no-store"})
 
 # --------------------------------------------------------------------
 
