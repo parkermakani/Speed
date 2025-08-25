@@ -47,7 +47,9 @@ const ensureStates = async () => {
   return statesGeo;
 };
 
-export function FlatMap({
+import React from "react";
+
+function FlatMapInner({
   lat,
   lng,
   state,
@@ -57,13 +59,33 @@ export function FlatMap({
 }: FlatMapProps) {
   const [selectedCity, setSelectedCity] = useState<JourneyCity | null>(null);
   const isMobile = useMediaQuery("(max-width: 1100px)");
+  const initialZoom = isMobile ? 3 : 4; // zoom level higher on desktop
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
   const pastMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const markerContainerRef = useRef<HTMLDivElement | null>(null);
+  const markerRootRef = useRef<ReturnType<typeof ReactDOM.createRoot> | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [unsupported, setUnsupported] = useState(false);
+
+  // Safely unmount the React root for the animated marker outside of React's render tick
+  const safeUnmountMarkerRoot = () => {
+    const root = markerRootRef.current;
+    if (root) {
+      markerRootRef.current = null;
+      setTimeout(() => {
+        try {
+          root.unmount();
+        } catch (e) {
+          // no-op; unmount can be called during strict mode double-invoke
+        }
+      }, 0);
+    }
+  };
 
   const addStateLayers = async (stateName: string) => {
     if (!mapRef.current) return;
@@ -143,41 +165,120 @@ export function FlatMap({
       markerRef.current.remove();
       markerRef.current = null;
     }
+    safeUnmountMarkerRoot();
+    markerContainerRef.current = null;
 
     const create = () => {
       const container = document.createElement("div");
       // Allow clicks on marker
       container.style.pointerEvents = "auto";
+      // Ensure this marker stays above other icons
+      container.style.zIndex = "1000";
+      // Tip target: current city marker
+      try {
+        container.setAttribute("data-tip-target", "current-city");
+      } catch {}
 
       // Mount React component inside container
       const MarkerComponent = isSleep ? AnimatedSleeping : AnimatedMotorcycle;
-      ReactDOM.createRoot(container).render(
+      const zoom = map.getZoom();
+      const baseAwake = 300;
+      const baseSleep = 220;
+      const getMarkerSizeForZoom = (z: number) => {
+        const minZoom = 3;
+        const maxZoom = 8;
+        const t = Math.max(0, Math.min(1, (z - minZoom) / (maxZoom - minZoom)));
+        if (isSleep) {
+          const minSize = 160;
+          const maxSize = 240;
+          return Math.round(minSize + (maxSize - minSize) * t);
+        }
+        const minSize = 220;
+        const maxSize = 340;
+        return Math.round(minSize + (maxSize - minSize) * t);
+      };
+      const size = getMarkerSizeForZoom(zoom);
+      const scale = size / (isSleep ? baseSleep : baseAwake);
+      const clickWidth = Math.round((isSleep ? 200 : 120) * scale);
+      const clickHeight = Math.round(140 * scale);
+      const clickOffsetX = Math.round((isSleep ? 0 : 150) * scale);
+      const clickOffsetY = Math.round((isSleep ? 60 : 80) * scale);
+
+      const root = ReactDOM.createRoot(container);
+      root.render(
         <MarkerComponent
-          size={isSleep ? 220 : 300}
+          size={size}
           showBorder={false}
-          clickWidth={isSleep ? 200 : 120}
-          clickHeight={isSleep ? 140 : 140}
-          clickOffsetX={isSleep ? 0 : 150}
-          clickOffsetY={isSleep ? 60 : 80}
+          clickWidth={clickWidth}
+          clickHeight={clickHeight}
+          clickOffsetX={clickOffsetX}
+          clickOffsetY={clickOffsetY}
           showClickBorder={false}
           onClick={() => console.log("Marker clicked")}
         />
       );
+      markerRootRef.current = root;
+      markerContainerRef.current = container;
 
       markerRef.current = new mapboxgl.Marker({
         element: container,
         anchor: "center",
-        offset: [-50, -45], // half of 300px to align bottom of image with coordinate
+        offset: [
+          Math.round(-50 * (size / baseAwake)),
+          Math.round(-45 * (size / baseAwake)),
+        ],
       })
         .setLngLat([lng, lat])
         .addTo(map);
     };
+    // Markers do not depend on style state; create immediately to avoid queued duplicates
+    create();
+  };
 
-    if (map.isStyleLoaded()) {
-      map.once("idle", create);
-    } else {
-      map.once("styledata", () => map.once("idle", create));
-    }
+  // Update the animated marker size and offsets on zoom
+  const updateMarkerSize = () => {
+    const map = mapRef.current;
+    if (
+      !map ||
+      !markerRef.current ||
+      !markerContainerRef.current ||
+      !markerRootRef.current
+    )
+      return;
+    const zoom = map.getZoom();
+    const baseAwake = 300;
+    const baseSleep = 220;
+    const minZoom = 3;
+    const maxZoom = 8;
+    const t = Math.max(0, Math.min(1, (zoom - minZoom) / (maxZoom - minZoom)));
+    const size = Math.round(
+      (isSleep ? 160 : 220) +
+        ((isSleep ? 240 : 340) - (isSleep ? 160 : 220)) * t
+    );
+    const scale = size / (isSleep ? baseSleep : baseAwake);
+    const clickWidth = Math.round((isSleep ? 200 : 120) * scale);
+    const clickHeight = Math.round(140 * scale);
+    const clickOffsetX = Math.round((isSleep ? 0 : 150) * scale);
+    const clickOffsetY = Math.round((isSleep ? 60 : 80) * scale);
+
+    const MarkerComponent = isSleep ? AnimatedSleeping : AnimatedMotorcycle;
+    markerRootRef.current.render(
+      <MarkerComponent
+        size={size}
+        showBorder={false}
+        clickWidth={clickWidth}
+        clickHeight={clickHeight}
+        clickOffsetX={clickOffsetX}
+        clickOffsetY={clickOffsetY}
+        showClickBorder={false}
+        onClick={() => console.log("Marker clicked")}
+      />
+    );
+
+    markerRef.current.setOffset([
+      Math.round(-50 * (size / baseAwake)),
+      Math.round(-45 * (size / baseAwake)),
+    ] as any);
   };
 
   const drawPath = () => {
@@ -237,6 +338,30 @@ export function FlatMap({
     })
   ) as string[];
 
+  // Compute icon size based on current zoom level
+  const getIconSizeForZoom = (zoom: number) => {
+    const minSize = 40; // smaller when zoomed out
+    const maxSize = 70; // larger when zoomed in
+    const minZoom = 3;
+    const maxZoom = 8;
+    const t = Math.max(0, Math.min(1, (zoom - minZoom) / (maxZoom - minZoom)));
+    return Math.round(minSize + (maxSize - minSize) * t);
+  };
+
+  // Resize all past city icons on zoom
+  const updatePastIconSizes = () => {
+    const map = mapRef.current;
+    if (!map || pastMarkersRef.current.length === 0) return;
+    const size = getIconSizeForZoom(map.getZoom());
+    pastMarkersRef.current.forEach((mk) => {
+      const el = mk.getElement() as HTMLImageElement;
+      if (el) {
+        el.style.width = `${size}px`;
+        el.style.height = `${size}px`;
+      }
+    });
+  };
+
   const renderPastMarkers = () => {
     const map = mapRef.current;
     if (!map || pastCities.length === 0) return;
@@ -246,12 +371,15 @@ export function FlatMap({
     pastMarkersRef.current = [];
 
     pastCities.forEach((pt) => {
+      const initialSize = getIconSizeForZoom(map.getZoom());
       const img = document.createElement("img");
       img.src = allIcons[Math.floor(Math.random() * allIcons.length)];
-      img.style.width = "60px";
-      img.style.height = "60px";
+      img.style.width = `${initialSize}px`;
+      img.style.height = `${initialSize}px`;
       img.style.cursor = "pointer";
       img.style.pointerEvents = "auto";
+      // Keep past markers below the current animated marker
+      img.style.zIndex = "100";
       img.addEventListener("click", (e) => {
         e.stopPropagation();
         setSelectedCity({
@@ -266,6 +394,9 @@ export function FlatMap({
         .addTo(map);
       pastMarkersRef.current.push(mk);
     });
+
+    // Ensure sizes are correct right after rendering (in case zoom changed)
+    updatePastIconSizes();
   };
 
   // scaling removed – icons fixed size
@@ -283,8 +414,8 @@ export function FlatMap({
 
     // Expanded bounds give users room to pan/zoom slightly beyond mainland USA
     const usaBounds: [number, number][] = [
-      [-135, 15], // west / south margins extended ~10°
-      [-55, 55], // east / north margins extended ~5–6°
+      [-165, 5], // west / south margins extended ~10°
+      [-25, 65], // east / north margins extended ~5–6°
     ];
 
     try {
@@ -294,7 +425,7 @@ export function FlatMap({
           import.meta.env.VITE_MAPBOX_STYLE ||
           "mapbox://styles/mapbox/light-v11", // sensible fallback
         center: [-95, 40], // rough USA centre
-        zoom: 2.2, // fits USA slightly farther out
+        zoom: initialZoom, // mobile uses 3, desktop uses 4 for closer view
         pitch: 0,
         bearing: 0,
         dragRotate: false,
@@ -309,13 +440,13 @@ export function FlatMap({
 
     // Immediately constrain view
     // Allow a bit more zoom-out and keep loose bounds
-    mapRef.current.setMinZoom(2.0);
+    mapRef.current.setMinZoom(3.0);
     mapRef.current.setMaxBounds(usaBounds as any);
 
     mapRef.current.on("load", () => {
       // refine bounds & minzoom now that style is ready
       mapRef.current!.fitBounds(usaBounds as any, { padding: 60, duration: 0 });
-      // Keep previous minZoom (2.0) so user can zoom out a bit
+      // Keep previous minZoom (1.0) so user can zoom out a bit
 
       if (!HIDE) {
         // draw USA polygons and highlight state only when not hiding
@@ -323,6 +454,9 @@ export function FlatMap({
         addMarker();
         drawPath();
         renderPastMarkers();
+        // Resize icons as user zooms
+        mapRef.current!.on("zoom", updatePastIconSizes);
+        mapRef.current!.on("zoom", updateMarkerSize);
       }
       mapRef.current!.once("idle", () => setLoading(false));
     });
@@ -344,6 +478,11 @@ export function FlatMap({
       // clear pulse interval if present
       // @ts-ignore
       if (mapRef.current?._pulseId) clearInterval(mapRef.current._pulseId);
+      // remove zoom listener
+      mapRef.current?.off("zoom", updatePastIconSizes);
+      mapRef.current?.off("zoom", updateMarkerSize);
+      // unmount animated marker root safely
+      safeUnmountMarkerRoot();
       mapRef.current?.remove();
     };
   }, []);
@@ -356,6 +495,7 @@ export function FlatMap({
     addStateLayers(state || "");
     drawPath();
     renderPastMarkers();
+    updatePastIconSizes();
   }, [lat, lng, state, path, pastCities, isSleep]);
 
   // Manage Mapbox Popup on desktop
@@ -483,6 +623,10 @@ export function FlatMap({
       <Drawer
         isOpen={isMobile && !!selectedCity}
         onClose={() => setSelectedCity(null)}
+        title={
+          selectedCity ? `${selectedCity.city}, ${selectedCity.state}` : ""
+        }
+        showBackButton
       >
         {isMobile && selectedCity && (
           <CityPopup
@@ -496,3 +640,18 @@ export function FlatMap({
     </div>
   );
 }
+
+export const FlatMap = React.memo(FlatMapInner, (prev, next) => {
+  // Prevent re-render during drawer drag by shallow-comparing key props
+  if (
+    prev.lat === next.lat &&
+    prev.lng === next.lng &&
+    prev.state === next.state &&
+    prev.isSleep === next.isSleep &&
+    prev.pastCities === next.pastCities &&
+    prev.path === next.path
+  ) {
+    return true;
+  }
+  return false;
+});

@@ -8,6 +8,16 @@ import settingsSvg from "../../assets/Icons/settings.svg?raw";
 import shopSvg from "../../assets/Icons/shop.svg?raw";
 import shopAlertSvg from "../../assets/Icons/shop-alert.svg?raw";
 import egoLogoSvg from "../../assets/Graphics/EgoX14Logo.svg?raw";
+import animCircleSvg from "../../assets/Icons/anim-circle.svg?raw";
+import animTriangleSvg from "../../assets/Icons/anim-triangle.svg?raw";
+import animSquareSvg from "../../assets/Icons/anim-square.svg?raw";
+import animPentagonSvg from "../../assets/Icons/anim-pentagon.svg?raw";
+import animHexagonSvg from "../../assets/Icons/anim-hexagon.svg?raw";
+import animStarSvg from "../../assets/Icons/anim-star.svg?raw";
+import animDiamondSvg from "../../assets/Icons/anim-diamond.svg?raw";
+import expandSvg from "../../assets/Icons/expand.svg?raw";
+import collapseSvg from "../../assets/Icons/collapse.svg?raw";
+import questionMarkSvg from "../../assets/Icons/question-mark.svg?raw";
 
 const ICONS: Record<string, string> = {
   edit: editSvg,
@@ -17,6 +27,16 @@ const ICONS: Record<string, string> = {
   shop: shopSvg,
   "shop-alert": shopAlertSvg,
   "ego-logo": egoLogoSvg,
+  "anim-circle": animCircleSvg,
+  "anim-triangle": animTriangleSvg,
+  "anim-square": animSquareSvg,
+  "anim-pentagon": animPentagonSvg,
+  "anim-hexagon": animHexagonSvg,
+  "anim-star": animStarSvg,
+  "anim-diamond": animDiamondSvg,
+  expand: expandSvg,
+  collapse: collapseSvg,
+  "question-mark": questionMarkSvg,
 };
 
 interface IconProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -74,6 +94,15 @@ export const Icon: React.FC<IconProps> = ({
 
   let processedSvg = rawSvg;
 
+  // Remove any hard-coded width/height so the svg scales with the container
+  processedSvg = processedSvg.replace(/\s(width|height)="[^"]+"/g, "");
+
+  // Inject width/height=100% so it fills the wrapper and stays centered
+  processedSvg = processedSvg.replace(
+    /<svg(\s|>)/,
+    `<svg width="100%" height="100%" $1`
+  );
+
   if (!preserveColors) {
     if (effectiveStroke) {
       processedSvg = processedSvg.replace(
@@ -96,6 +125,8 @@ export const Icon: React.FC<IconProps> = ({
       {...rest}
       style={{
         display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
         width: dimension,
         height: dimension,
         color: effectiveFill ?? style?.color ?? undefined,

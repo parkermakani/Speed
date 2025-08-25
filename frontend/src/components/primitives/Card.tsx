@@ -24,6 +24,8 @@ export function Card({
     transition: "var(--transition-fast)",
     position: "relative",
     cursor: clickable ? "pointer" : "default",
+    boxSizing: "border-box",
+    overflow: "hidden",
   };
 
   const paddingStyles = {

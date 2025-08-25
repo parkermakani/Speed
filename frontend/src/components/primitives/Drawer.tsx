@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Icon } from "./Icon";
+import { ChromaticText } from "../ChromaticText";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 
 interface DrawerProps {
@@ -13,6 +14,21 @@ interface DrawerProps {
   className?: string;
   /** Optional z-index override (defaults to overlay) */
   zIndex?: number;
+  /** Optional partial slide offset in px (0 = closed, width = fully open) */
+  slideOffsetPx?: number | null;
+  /** If true, disables transition so drag follows the pointer exactly */
+  isDragging?: boolean;
+  /** Optional header title shown centered at the top */
+  title?: string;
+  /** If provided and on mobile, shows a back button on the left that calls onBack (defaults to onClose) */
+  fancy?: boolean;
+
+  showBackButton?: boolean;
+
+  /** Optional back callback; defaults to onClose */
+  onBack?: () => void;
+  /** Optional right-side header action (e.g., cart button) */
+  rightAction?: React.ReactNode;
 }
 
 /**
@@ -28,6 +44,13 @@ export const Drawer: React.FC<DrawerProps> = ({
   children,
   className = "",
   zIndex,
+  slideOffsetPx = null,
+  isDragging = false,
+  title,
+  fancy = false,
+  showBackButton = true,
+  onBack,
+  rightAction,
 }) => {
   // Close on Escape key
   useEffect(() => {
@@ -53,7 +76,7 @@ export const Drawer: React.FC<DrawerProps> = ({
   }, [isOpen]);
 
   const drawerRef = useRef<HTMLDivElement>(null);
-  const isMobile = useMediaQuery("(max-width: 1299px)");
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   // Focus trap while open
   useEffect(() => {
@@ -113,9 +136,19 @@ export const Drawer: React.FC<DrawerProps> = ({
     inset: 0,
     backgroundColor: isOpen ? "rgba(0,0,0,0.4)" : "transparent",
     transition: "background-color var(--transition-base)",
-    pointerEvents: isOpen ? "auto" : "none",
-    zIndex: zIndex ?? 1300, // match --z-overlay default
+    pointerEvents: isOpen || (slideOffsetPx ?? 0) > 0 ? "auto" : "none",
+    // Ensure above ShopTab (z 1400) on mobile
+    zIndex: zIndex ?? (isMobile ? 1500 : 1300),
   };
+
+  // Compute transform: prefer explicit slide offset when provided (dragging),
+  // otherwise fall back to open/closed transform.
+  const translateX =
+    slideOffsetPx != null
+      ? `calc(100% - ${Math.max(0, slideOffsetPx)}px)`
+      : isOpen
+      ? "0"
+      : "100%";
 
   const drawerStyles: React.CSSProperties = {
     position: "absolute",
@@ -126,8 +159,8 @@ export const Drawer: React.FC<DrawerProps> = ({
     borderLeft: "4px solid var(--color-land-dark)",
     backdropFilter: "blur(6px)",
     boxShadow: "-4px 0 16px rgba(0,0,0,0.3)",
-    transform: isOpen ? "translateX(0)" : "translateX(100%)",
-    transition: "transform var(--transition-slow)",
+    transform: `translateX(${translateX})`,
+    transition: isDragging ? "none" : "transform var(--transition-slow)",
     overflowY: "auto",
     display: "flex",
     flexDirection: "column",
@@ -163,28 +196,82 @@ export const Drawer: React.FC<DrawerProps> = ({
         role="dialog"
         aria-modal="true"
       >
-        {isMobile && (
-          <button
-            onClick={onClose}
+        {(title || rightAction || showBackButton || fancy) && (
+          <div
             style={{
-              position: "absolute",
-              top: "var(--space-4)",
-              left: "var(--space-4)",
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
+              position: "sticky",
+              top: 0,
+              zIndex: 100,
+              display: "grid",
+              gridTemplateColumns: "1fr auto 1fr",
+              alignItems: "center",
+              padding: "0 var(--space-3)",
+              background: "var(--color-land)",
+              borderBottom: "1px solid var(--color-land-dark)",
+              minHeight: 56,
+              columnGap: "var(--space-2)",
             }}
-            aria-label="Close"
           >
-            <Icon
-              name="left-chevron"
-              size={28}
-              stroke="var(--color-land-dark)"
-              fill="transparent"
-            />
-          </button>
+            {/* Left: Back button on mobile only */}
+            <div style={{ justifySelf: "start" }}>
+              {showBackButton && (
+                <button
+                  onClick={onBack ?? onClose}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    boxShadow: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                  aria-label="Back"
+                >
+                  <Icon
+                    name="left-chevron"
+                    size={24}
+                    stroke="var(--color-land-dark)"
+                    fill="transparent"
+                  />
+                </button>
+              )}
+            </div>
+            {/* Center: Title */}
+            <div style={{ textAlign: "center", overflow: "hidden" }}>
+              {title && (
+                <ChromaticText
+                  text={title}
+                  layers={fancy ? undefined : ["base", "outline"]}
+                  style={{
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2 as any,
+                    WebkitBoxOrient: "vertical" as any,
+                    overflow: "hidden",
+                    whiteSpace: "normal",
+                    textOverflow: "ellipsis",
+                    wordBreak: "break-word",
+                    fontSize: isMobile
+                      ? "clamp(1.2rem, 6vw, 1.75rem)"
+                      : "clamp(1.6rem, 2.4vw, 3rem)",
+                  }}
+                />
+              )}
+            </div>
+            {/* Right: Custom action */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                justifySelf: "end",
+              }}
+            >
+              {rightAction}
+            </div>
+          </div>
         )}
-        {children}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+          {children}
+        </div>
       </div>
     </div>
   );

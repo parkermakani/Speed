@@ -11,6 +11,7 @@ export const Footer: React.FC = () => {
       <div
         style={{
           display: "flex",
+          height: "50px",
           justifyContent: "center",
           alignItems: "center",
           gap: "1rem",
@@ -21,10 +22,11 @@ export const Footer: React.FC = () => {
           alt="Speed Does America"
           className="footer-logo"
           style={{
-            width: "8%",
+            width: "84px",
+            height: "auto",
             opacity: 0.7,
-            marginBottom: "-26px",
             cursor: "pointer",
+            marginBottom: "-20px",
           }}
           onClick={() => {
             window.open("https://pplwatching.com/", "_blank");
@@ -32,12 +34,12 @@ export const Footer: React.FC = () => {
         />
         <Icon
           name="ego-logo"
-          size={48}
+          size={36}
           color="var(--color-star-white)"
           style={{
             opacity: 0.7,
             cursor: "pointer",
-            marginBottom: "-26px",
+            marginBottom: "-10px",
           }}
           onClick={() => {
             window.open("https://egox14.com/", "_blank");

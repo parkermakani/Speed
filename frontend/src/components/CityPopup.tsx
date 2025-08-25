@@ -1,8 +1,6 @@
 import React from "react";
 import { Card } from "./primitives/Card";
-import { Icon } from "./primitives/Icon";
 import type { JourneyCity } from "../types";
-import { ChromaticText } from "./ChromaticText";
 import { fetchCities, fetchCityPosts, type SocialPost } from "../services/api";
 import { useEffect, useState } from "react";
 
@@ -65,6 +63,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
     const styleEl = document.createElement("style");
     styleEl.id = "_city_popup_styles";
     styleEl.innerHTML = `
+      .mapboxgl-popup.city-popup { z-index: 2000 !important; }
       .mapboxgl-popup.city-popup,
       .mapboxgl-popup.city-popup .mapboxgl-popup-content {
         max-width: none !important;
@@ -108,51 +107,6 @@ export const CityPopup: React.FC<CityPopupProps> = ({
 
   return (
     <div style={containerStyles}>
-      {inDrawer && (
-        <button
-          onClick={_onClose}
-          style={{
-            position: "absolute",
-            top: "var(--space-3)",
-            left: "var(--space-3)",
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-          }}
-          aria-label="Back"
-        >
-          <Icon
-            name="left-chevron"
-            size={28}
-            stroke="var(--color-land-dark)"
-            fill="transparent"
-          />
-        </button>
-      )}
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: "var(--space-4)",
-          paddingLeft: inDrawer
-            ? "var(--space-6)"
-            : undefined /* offset for back button */,
-        }}
-      >
-        <ChromaticText
-          text={`${city.city}, ${city.state}`}
-          layers={["base", "outline"]}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: inDrawer ? "2.5rem" : "1.35rem",
-            lineHeight: 1.2,
-            textAlign: "center",
-          }}
-        />
-      </header>
       {/* Posts gallery */}
       <div
         style={{

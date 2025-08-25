@@ -1,3 +1,41 @@
+Background and Motivation
+
+- Add a minimal cart system to the existing merch shop. On checkout, print a list of items in the cart.
+
+Key Challenges and Analysis
+
+- Integrate cart state across the app without disrupting current UI.
+- Keep initial checkout behavior simple: console print (and alert for visibility during manual QA).
+
+High-level Task Breakdown
+
+1. Create Cart context with localStorage persistence. Success: items survive reload; add/remove/quantity work.
+2. Wrap app with CartProvider. Success: provider available to app tree.
+3. Wire Add to Cart in Merch. Success: clicking adds one item; badge count updates.
+4. Add CartPanel UI in drawer with remove/quantity and Checkout prints items. Success: clicking Checkout logs list.
+5. Add unit test for add and checkout logging. Success: test passes.
+
+Project Status Board
+
+- [x] Create Cart context with localStorage
+- [x] Wrap app with CartProvider
+- [x] Wire Add to Cart in Merch
+- [x] Add CartPanel UI and checkout prints
+- [x] Cart back button returns to merch; cart icon hidden on cart view
+- [ ] Add unit test for checkout logging
+
+Current Status / Progress Tracking
+
+- Implemented context, provider, UI, and header cart toggle with badge. Added `CartPanel`. Wrote unit test; running tests next.
+
+Executor's Feedback or Assistance Requests
+
+- None currently. If we later want real checkout, we can integrate a payment provider.
+
+Lessons
+
+- Include visible confirmation (alert) in addition to console logging to aid manual testing.
+
 ### Background and Motivation
 
 A mobile-first React web app that shows a Mapbox map centered on a live location marker with a pulsing effect and a small quote beneath it. A lightweight FastAPI backend controls the marker location and quote. An admin-only dashboard (protected by a simple password stored in an environment variable) allows updating the location and quote in real time. The system should be skinnable via our own primitives and style tokens, and future-ready for integrations (StreamElements bot, social media scraping near the marker).
@@ -18,6 +56,15 @@ A mobile-first React web app that shows a Mapbox map centered on a live location
 - **3D marker model**: Investigate embedding a lightweight GLTF model as a marker that reacts to map pitch/bearing for an immersive experience, balancing performance on mobile.
 - **UI clean-up**: Remove legacy notices ("last updated", "approximate location") and lat/lon read-outs to streamline the interface.
 - **Journey table in Admin**: Maintain the ordered list of cities directly in the backend DB and surface a management table in the admin dashboard. Admin can mark any city as **current** with a toggle. Frontend map consumes DB-driven journey data (no external Google Sheet).
+
+#### New: Contextual Tip System
+
+- **Non-intrusive onboarding**: Surface a help "?" affordance in the top-right that can prompt discovery without blocking primary map interactions.
+- **Spotlight dimming**: When a tip references a specific icon/control, the rest of the UI should be dimmed with a "spotlight" left on the referenced control and the tip card itself. Background should be mostly inert while allowing interaction with the highlighted control if required by the tip.
+- **Stable targets**: Tips depend on stable selectors/refs for targets (e.g., help button, shop tab, drawer header). Introduce `data-tip-target` attributes as needed.
+- **Drawer interplay**: One tip will require opening the Merch drawer. The system must wait for `shopOpen === true` before advancing, and ensure z-index ordering places the tip overlay above the Drawer and its backdrop.
+- **Persisted frequency**: Auto-prompt the first tip once after a short delay per session (e.g., 12s), and avoid re-prompting excessively. Use `localStorage` to remember if the prompt was shown/dismissed.
+- **Accessibility**: Provide keyboard navigation (Esc to dismiss, Tab cycle within the tip), ARIA roles, and readable contrast over the dim layer.
 
 ### High-level System Design
 
@@ -247,6 +294,66 @@ A mobile-first React web app that shows a Mapbox map centered on a live location
 - 22i. **Testing & docs**: Unit tests mocking Apify responses, integration tests for endpoint, Vitest tests for gallery rendering; update README/env docs (`APIFY_TOKEN`, `SOCIAL_SCRAPE_INTERVAL_MIN`, `SOCIAL_PROFILES`).
 - **Success**: After toggling a city to current, within the configured interval its popup shows a gallery of relevant IG/TikTok posts; tests pass and manual spot-check shows accuracy.
 
+24. Contextual Tip System (frontend)
+
+- 24a. Inject Help affordance: Add a small circular "?" help button to the top-right overlay stack (inside `App.tsx` overlay near `Header`). Temporary implementation can be a styled button; later we can swap to an SVG icon.
+
+  - Success: Button renders at top-right on all breakpoints with z-index above header; click opens tip sequence.
+
+- 24b. Tip data model: Define a typed `TipStep` array with fields `{ id, imageUrl, target: SelectorOrRef, placement, continueMode }` where `continueMode` ∈ `"nextButton" | "clickTarget" | "waitCondition"`.
+
+  - Success: Strongly typed steps; compile-time safety; initial steps include:
+    1.  Prompt: points at the help button, continueMode = `nextButton`.
+    2.  Discover Merch: points at ShopTab, continueMode = `clickTarget` (user must open).
+    3.  Inside Merch: anchors to Drawer header or first card area, continueMode = `nextButton`.
+
+- 24c. Spotlight overlay: Implement `SpotlightOverlay` that dims the page with 4 absolute-positioned rectangles around a computed bounding rect of the target to leave a “hole” over the target. Allow pointer-events only through the hole and tip card; block elsewhere.
+
+  - Success: Background is visually dim; only target area remains fully visible and clickable; smooth on resize/scroll; no layout shift.
+
+- 24d. TipSystem component + context: Manage current step index, expose `start()`, `next()`, `close()`, and auto-prompt logic (e.g., show first tip once after 12s if never seen this session). Persist `tipPromptShown` and `tipCompletedIds` in `localStorage`.
+
+  - Success: Auto-prompt happens once per session; manual trigger via help button works; state survives quick navigations.
+
+  - 24d.1. Auto-prompt settings (CONFIRMED): Delay 12 seconds, frequency once per session.
+    - Success: After 12s idle on first visit of session, show tip-1; do not re-show after dismissal until a new session.
+
+- 24e. Merch drawer integration: Wire a step whose `continueMode = "clickTarget"` to require opening the drawer. Observe `shopOpen` state from `App.tsx` via context/props to detect when to advance to the next step. Ensure tip overlay stacks above Drawer/backdrop.
+
+  - Success: When user taps ShopTab, drawer opens and tips continue; overlay doesn’t obstruct the ShopTab’s clickable area.
+
+  - 24e.1. Required action (CONFIRMED): Opening the Merch drawer is required to proceed (no skip on that step).
+
+- 24f. Accessibility and controls: Esc closes tips; arrow/Tab navigation constrained within tip card; tip card has `role="dialog"` and `aria-modal="true"`.
+
+  - Success: Keyboard-only user can operate; screen reader announces tip content.
+
+  - 24f.1. "Don’t show again" (CONFIRMED): Provide a control to suppress future auto-prompts and sequences; persist in `localStorage` (e.g., `tips_suppressed = true`).
+
+- 24g. Tests: Add Vitest/RTL tests to verify auto-prompt gating, step advancement, spotlight hole math around a mocked target, and the drawer-advance condition.
+
+  - Success: Tests pass locally and in CI; no lints introduced.
+
+- 24h. Assets: Use existing `frontend/src/assets/Tips/tip-1.png` (and siblings) for the image content in the tip card. Lazy-load subsequent images just-in-time.
+
+  - Success: Images render crisp on mobile & desktop; no layout jank.
+
+  - 24i. Customizable order (CONFIRMED): `tip-1.png` is always the initial prompt; subsequent steps order is configurable.
+
+    - Implement `frontend/src/tips/tipsConfig.ts` exporting a `TipStep[]` constructed from reusable step templates. User can reorder steps without code changes elsewhere.
+    - Success: Reordering `tipsConfig` changes runtime sequence immediately.
+
+  - 24j. Targets & anchors (CONFIRMED): Spotlight targets include Help, ShopTab, Quote, Current City marker, Merch first card, Animation star icons, and a future Time Limit badge.
+    - Introduce stable anchors via `data-tip-target` attributes:
+      - Help: `data-tip-target="help"` (Help button in overlay)
+      - ShopTab: `data-tip-target="shoptab"` (root of `ShopTab`)
+      - Quote: `data-tip-target="quote"` (wrapper in `Quote.tsx`)
+      - Current city: `data-tip-target="current-city"` (Mapbox marker container in `FlatMap.tsx`)
+      - Merch card: `data-tip-target="merch-card"` (first product `Card` in `Merch.tsx`)
+      - Animation icons: `data-tip-target="anim-icons"` (container around the shape buttons)
+      - Time limit: `data-tip-target="time-limit"` (placeholder element adjacent to price; becomes active when feature lands)
+    - Success: Spotlight positions correctly over each target; when a target does not exist yet (e.g., time limit), that step is deferred or skipped gracefully with clear messaging.
+
 23. Lightweight 3D Model Viewer (SpeedLowPoly + animation selector)
 
     - 23a. **Asset Preparation**: Use the new `assets/3D/SpeedLowPoly.glb` (already low-poly with baked animation). Verify file ≤5 MB; if larger, consider Draco compression via `gltf-pipeline`.
@@ -402,6 +509,56 @@ replit.nix
 |- [ ] 22. Social media scraping – Apify debug
 |- [ ] 23. Lightweight 3D Model Viewer (SpeedLowPoly + animation selector)
 
+- [ ] 24. Contextual Tip System (frontend)
+  - [ ] 24a. Add Help "?" button to top-right overlay
+  - [ ] 24b. Define `TipStep` model and initial steps
+  - [ ] 24c. Implement `SpotlightOverlay` with interactive hole
+  - [ ] 24d. Build `TipSystem` context + component with auto-prompt
+  - [ ] 24e. Integrate Merch drawer step (wait for open)
+  - [ ] 24f. A11y: focus handling, Esc to close, ARIA roles
+  - [ ] 24g. Tests for gating, progression, spotlight positioning
+
+#### 24.x Implementation Details & Remaining Plan
+
+- **Targets implemented**:
+
+  - `data-tip-target="help"` → Help button (top-right)
+  - `data-tip-target="shoptab"` → `ShopTab` root (right side)
+  - `data-tip-target="quote"` → `Quote` wrapper
+  - `data-tip-target="current-city"` → animated marker container in `FlatMap`
+  - `data-tip-target="merch-card"` → first merch `Card` in `Merch`
+  - `data-tip-target="anim-icons"` → container around animation icon buttons in `Merch`
+
+- **Config & step sequence** (`frontend/src/tips/tipsConfig.ts`):
+
+  - Steps added for Help prompt, Quote, Current City, ShopTab (click required), Merch first card, Animation icons.
+  - Order is fully customizable; set `continueMode` per step: `tapAnywhere`, `clickTarget`, or `waitCondition`.
+  - Desktop/mobile placements editable via `placementDesktop` / `placementMobile` with `{ anchor, offsetX, offsetY, rotationDeg }`.
+
+- **Debug & authoring**:
+
+  - URL flags: `tipsForce=1` to start immediately; `tipsDebug=1` to enable drag; `tipsStep=<id>` or `tipsIndex=<n>` to jump to a specific step.
+  - In debug, drag the tip image to refine offsets; press “Copy placement” to paste into the config for permanence.
+
+- **Spotlight readiness**:
+
+  - Overlay renders only after the target element exists; system checks every 200 ms and renders once found.
+  - For elements rendered later (e.g., map marker), scroll/pan if needed; overlay will attach once target appears.
+
+- **Persistence**:
+
+  - Auto-prompt shown once per session (12 s after load). `Don’t show again` persists suppression in `localStorage`.
+  - Drag-adjusted positions persist in-memory for the session; copy/paste into config to make them permanent.
+
+- **Accessibility**:
+
+  - Dimming uses high-contrast overlay; tip is keyboard-focusable; Esc closes; background inertness via overlay.
+
+- **Next steps**:
+  - Add optional `waitCondition` for “time limit” badge (`data-tip-target="time-limit"`) once implemented.
+  - Write unit tests for: auto-prompt gating, step advancement (tapAnywhere/clickTarget), target readiness polling, and spotlight geometry.
+  - Consider persisting per-device placement overrides in `localStorage` keyed by step id and breakpoint.
+
 ### Current Status / Progress Tracking
 
 |- 🚀 Firebase integration epic complete: Frontend auth, backend token verification, Firestore data layer, Cloud Storage images (pending merch images upload manually).
@@ -410,6 +567,13 @@ replit.nix
 |- 🛠️ Started task 20c: Updated `backend/auth.py` to verify ID tokens via Firebase Admin and changed protected route dependency. Deprecated old /api/auth/login/logout endpoints in `backend/main.py`.
 |- 🐞 Task 22 progress: Debug run produced IG:1, TW:10 raw posts but 0 after filtering; needs filter & search refinement (see Task 22e–22f).
 
+|- 📝 Planned: Tip System
+| - Help button location: top-right of overlay stack (above `Header`)
+| - Auto-prompt: show tip-1 once after ~12s per session
+| - Spotlight: 4-rect approach to leave interactive hole over target
+| - First target: help button; second target: `ShopTab`; third: Drawer header
+| - Z-index plan: Tip overlay 3000+, above Drawer (1500) and ShopTab (1400)
+
 ### Executor's Feedback or Assistance Requests
 
 - Please create a Firebase project (if not already) and download a service account JSON key.
@@ -417,6 +581,13 @@ replit.nix
 - Fill in the VITE*FIREBASE*\* variables in `.env` with values from **Project Settings → General → Your apps**.
 - Let me know when credentials are in place so I can run the project locally and confirm successful initialisation before proceeding to frontend auth (task 20b).
 - Please verify that the _current city_ document has an accurate `lastCurrentAt` ISO timestamp (e.g., within the last 48 h) so filters do not exclude valid posts. If stale, toggle city to current again to refresh the timestamp for testing.
+
+- Tip System confirmations requested:
+  - Confirm the auto-prompt delay (proposed 12 seconds) and frequency (per session).
+  - Provide the desired order and copy for tips (we will use `Tips/tip-1.png`, `tip-2.png`, etc.).
+  - Confirm which controls we should spotlight beyond Help and ShopTab (add any other icon targets).
+  - Is the “open Merch drawer” step required to proceed, or should we allow a skip? Proposed: required to proceed for onboarding.
+  - Do we need a “Don’t show again” control in the tip card?
 
 ### Recent Enhancements (Latest Session)
 

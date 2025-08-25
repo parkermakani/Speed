@@ -11,6 +11,7 @@ interface QuoteProps {
 export const Quote: React.FC<QuoteProps> = ({ quote }) => {
   return (
     <div
+      data-tip-target="quote"
       style={{
         maxWidth: "80%",
         textAlign: "center",

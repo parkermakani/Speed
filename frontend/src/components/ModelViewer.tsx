@@ -14,7 +14,9 @@ import baseModelUrl from "../assets/3D/SpeedLowPoly_Base.glb";
 interface ModelViewerProps {
   /** Height of the viewer (number = px or CSS string). Defaults to 260. */
   height?: number | string;
-  /** Disable interactive orbit controls. */
+  /** Whether the viewer is on mobile. */
+  isMobile?: boolean;
+  /** Zoom in more on mobile. */
   disableControls?: boolean;
   /** Optional shirt texture URL (relative import or runtime). */
   shirtTexture?: string;
@@ -141,6 +143,7 @@ function SpeedModel({
 
 export const ModelViewer: React.FC<ModelViewerProps> = ({
   height = "90%",
+  isMobile = false,
   disableControls = false,
   shirtTexture,
   animation,
@@ -163,7 +166,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         background: "linear-gradient(135deg, #0A3161 0%, #B31942 100%)",
       }}
     >
-      <Canvas camera={{ position: [0, 2, 4] }}>
+      <Canvas camera={{ position: [0, 2, isMobile ? 4 : 8] }}>
         <ambientLight intensity={0.5} />
         <directionalLight position={[3, 2, 1]} intensity={0.8} />
         <Suspense fallback={<Loader />}>
@@ -176,9 +179,9 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         {!disableControls && !prefersReducedMotion && (
           <OrbitControls
             enablePan={false}
-            autoRotate
-            autoRotateSpeed={1}
             target={[0, 2, 0]}
+            minDistance={isMobile ? 2.2 : 3.5}
+            maxDistance={isMobile ? 4 : 10}
           />
         )}
       </Canvas>
