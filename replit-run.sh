@@ -13,8 +13,9 @@ echo "Building frontend..."
   cd frontend
   if [ ! -d node_modules ]; then
     echo "Installing frontend dependencies..."
-    npm ci --silent
+    npm ci --silent --legacy-peer-deps
   fi
+  rm -rf dist
   npm run build --silent
 )
 

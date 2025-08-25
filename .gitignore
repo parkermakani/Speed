@@ -38,10 +38,6 @@ coverage/
 Dockerfile*
 **/docker-compose*
 
-# ---- Replit ----
-.replit
-replit.nix
-
 # ---- Misc ----
 *.orig
 

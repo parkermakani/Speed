@@ -1,0 +1,7 @@
+run = "bash replit-run.sh"
+
+language = "bash"
+
+[deployment]
+build = ["sh","-c","npm --prefix frontend ci --legacy-peer-deps && npm --prefix frontend run build && pip install --no-cache-dir -r backend/requirements.txt"]
+run = ["sh","-c","bash replit-run.sh"]
