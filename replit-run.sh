@@ -10,15 +10,19 @@ export VITE_API_BASE_URL=
 PORT=${PORT:-8000}
 
 # Build frontend automatically so FastAPI serves fresh assets from frontend/dist
-echo "Building frontend..."
-(
-  cd frontend
-  if [ ! -d node_modules ]; then
-    echo "Installing frontend dependencies..."
-    npm install --silent
-  fi
-  npm run build --silent
-)
+if [ -d frontend/dist ]; then
+  echo "Using existing frontend/dist (skipping build)"
+else
+  echo "Building frontend..."
+  (
+    cd frontend
+    if [ ! -d node_modules ]; then
+      echo "Installing frontend dependencies..."
+      npm ci --legacy-peer-deps
+    fi
+    npm run build --silent
+  )
+fi
 
 echo "Starting Uvicorn on port $PORT"
 exec uvicorn backend.main:app --host 0.0.0.0 --port "$PORT"

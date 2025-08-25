@@ -1,17 +1,16 @@
-modules = ["nodejs-20", "python-3.12", "web"]
+modules = ["nodejs-20", "python-3.12"]
+
 run = "bash replit-run.sh"
+
+language = "bash"
+
+[deployment]
+build = ["sh","-c","npm --prefix frontend ci --legacy-peer-deps && npm --prefix frontend run build && pip install --no-cache-dir -r backend/requirements.txt"]
+run = ["sh","-c","bash replit-run.sh"]
 
 [nix]
 channel = "stable-25_05"
 
-[deployment]
-run = ["sh", "-c", "bash replit-run.sh"]
-deploymentTarget = "gce"
-
 [[ports]]
 localPort = 8000
 externalPort = 8000
-
-[[ports]]
-localPort = 8080
-externalPort = 80
