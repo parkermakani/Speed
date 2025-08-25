@@ -95,6 +95,16 @@ app.add_middleware(
 )
 
 
+# Ensure HTML (e.g., index.html) is not cached by proxies/browsers
+@app.middleware("http")
+async def no_cache_html(request, call_next):
+    response = await call_next(request)
+    content_type = response.headers.get("content-type", "")
+    if "text/html" in content_type:
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.on_event("startup")
 async def on_startup():
     """Initialize database on startup"""
@@ -572,8 +582,7 @@ frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"
 
 if os.path.isdir(frontend_dist):
     # Mount at root so non-API paths serve the built frontend
-    # Disable caching so index.html updates are always fetched fresh
-    app.mount("/", StaticFiles(directory=frontend_dist, html=True, max_age=0), name="static")
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
 
     # Fallback: serve index.html for unknown non-API routes (client-side routing)
     index_path = os.path.join(frontend_dist, "index.html")
