@@ -477,8 +477,7 @@ export const Merch: React.FC = () => {
             display: isMobile ? "grid" : "flex",
             flexDirection: isMobile ? undefined : "column",
             gridAutoFlow: isMobile ? "column" : undefined,
-            // Keep consistent card widths around the breakpoint without exploding sizes
-            gridAutoColumns: isMobile ? "clamp(220px, 40vw, 320px)" : undefined,
+            gridAutoColumns: isMobile ? "40vw" : undefined,
             overflowX: isMobile ? "auto" : undefined,
             WebkitOverflowScrolling: isMobile ? ("touch" as any) : undefined,
             overscrollBehaviorX: isMobile ? "contain" : undefined,
@@ -497,11 +496,10 @@ export const Merch: React.FC = () => {
             scrollBehavior: isMobile ? ("smooth" as any) : undefined,
           }}
           ref={productsRef}
-          // Enable drag-to-scroll only on mobile
-          onPointerDown={isMobile ? onPointerDown : undefined}
-          onPointerMove={isMobile ? onPointerMove : undefined}
-          onPointerUp={isMobile ? onPointerEnd : undefined}
-          onPointerLeave={isMobile ? onPointerEnd : undefined}
+          onPointerDown={isMobile ? undefined : onPointerDown}
+          onPointerMove={isMobile ? undefined : onPointerMove}
+          onPointerUp={isMobile ? undefined : onPointerEnd}
+          onPointerLeave={isMobile ? undefined : onPointerEnd}
         >
           {loading && <p>Loading…</p>}
           {!loading && products.length === 0 && <p>No products available.</p>}
@@ -542,9 +540,7 @@ export const Merch: React.FC = () => {
                   style={{
                     width: "100%",
                     height: isMobile ? "auto" : "auto",
-                    // Cap image height on mobile to prevent oversized cards at the breakpoint
-                    maxHeight: isMobile ? 220 : undefined,
-                    objectFit: isMobile ? "cover" : undefined,
+                    objectFit: isMobile ? undefined : undefined,
                     borderRadius: "var(--radius-md)",
                     display: "block",
                     marginBottom: -14,
