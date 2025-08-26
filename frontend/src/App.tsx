@@ -99,7 +99,7 @@ function App() {
           position: "fixed",
           top: "var(--space-4)",
           left: "var(--space-4)",
-          zIndex: 2000,
+          zIndex: !isDesktop && shopOpen ? 1400 : 2000,
         }}
       >
         <button
