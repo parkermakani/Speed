@@ -52,6 +52,7 @@ export const Drawer: React.FC<DrawerProps> = ({
   onBack,
   rightAction,
 }) => {
+  const countedRef = useRef(false);
   // Close on Escape key
   useEffect(() => {
     if (!isOpen) return;
@@ -73,6 +74,42 @@ export const Drawer: React.FC<DrawerProps> = ({
         document.body.style.overflow = original;
       };
     }
+  }, [isOpen]);
+
+  // Track global count of open drawers and broadcast changes
+  useEffect(() => {
+    const getCount = () => {
+      try {
+        return Number(document.body.dataset.drawersOpen || "0");
+      } catch {
+        return 0;
+      }
+    };
+    const setCount = (c: number) => {
+      try {
+        const next = Math.max(0, c);
+        document.body.dataset.drawersOpen = String(next);
+        window.dispatchEvent(
+          new CustomEvent("app:drawer-change", { detail: { count: next } })
+        );
+      } catch {}
+    };
+
+    if (isOpen && !countedRef.current) {
+      setCount(getCount() + 1);
+      countedRef.current = true;
+    }
+    if (!isOpen && countedRef.current) {
+      setCount(getCount() - 1);
+      countedRef.current = false;
+    }
+
+    return () => {
+      if (countedRef.current) {
+        setCount(getCount() - 1);
+        countedRef.current = false;
+      }
+    };
   }, [isOpen]);
 
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -161,7 +198,8 @@ export const Drawer: React.FC<DrawerProps> = ({
     boxShadow: "-4px 0 16px rgba(0,0,0,0.3)",
     transform: `translateX(${translateX})`,
     transition: isDragging ? "none" : "transform var(--transition-slow)",
-    overflowY: "auto",
+    overflowY: "hidden",
+    overflowX: "hidden",
     display: "flex",
     flexDirection: "column",
   } as React.CSSProperties;
@@ -269,7 +307,15 @@ export const Drawer: React.FC<DrawerProps> = ({
             </div>
           </div>
         )}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            overflow: "hidden",
+          }}
+        >
           {children}
         </div>
       </div>

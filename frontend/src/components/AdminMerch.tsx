@@ -48,6 +48,7 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
     imageFile: File | null;
     textureFile: File | null;
     defaultAnimation: string;
+    autoDisableAt: string;
   };
   const emptyForm: FormState = {
     name: "",
@@ -56,6 +57,7 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
     imageFile: null,
     textureFile: null,
     defaultAnimation: "",
+    autoDisableAt: "",
   };
 
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -100,6 +102,10 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
         shirtTexture = await getDownloadURL(texRef);
       }
 
+      const autoDisableAtIso = form.autoDisableAt
+        ? new Date(form.autoDisableAt).toISOString()
+        : undefined;
+
       if (editingId) {
         // update existing
         await updateMerch(
@@ -111,6 +117,7 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
             ...(imageUrl && { imageUrl }),
             ...(shirtTexture && { shirtTexture }),
             defaultAnimation: form.defaultAnimation || undefined,
+            autoDisableAt: autoDisableAtIso,
           },
           token
         );
@@ -124,6 +131,7 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
             shirtTexture,
             defaultAnimation: form.defaultAnimation || undefined,
             active: true,
+            autoDisableAt: autoDisableAtIso,
           },
           token
         );
@@ -213,6 +221,16 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
                   fullWidth
                 />
               </FormField>
+              <FormField label="Auto-disable at (local time)">
+                <Input
+                  type="datetime-local"
+                  value={form.autoDisableAt}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, autoDisableAt: e.target.value }))
+                  }
+                  fullWidth
+                />
+              </FormField>
 
               <Stack direction="row" spacing="sm" justify="end">
                 <Button
@@ -249,6 +267,7 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
                 <th>Active</th>
                 <th>Preview Img</th>
                 <th>Shirt Texture</th>
+                <th>Auto-disable At</th>
                 <th></th>
               </tr>
             </thead>
@@ -280,6 +299,11 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
                     )}
                   </td>
                   <td>
+                    {(it as any).autoDisableAt
+                      ? new Date((it as any).autoDisableAt).toLocaleString()
+                      : "--"}
+                  </td>
+                  <td>
                     <Button
                       size="sm"
                       variant="secondary"
@@ -292,6 +316,17 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
                       style={{ marginLeft: 4 }}
                       onClick={() => {
                         setEditingId(it.id);
+                        const toLocalInput = (iso?: string) => {
+                          if (!iso) return "";
+                          const d = new Date(iso);
+                          const pad = (n: number) => String(n).padStart(2, "0");
+                          const yyyy = d.getFullYear();
+                          const mm = pad(d.getMonth() + 1);
+                          const dd = pad(d.getDate());
+                          const hh = pad(d.getHours());
+                          const mi = pad(d.getMinutes());
+                          return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+                        };
                         setForm({
                           name: it.name,
                           price: it.price,
@@ -299,6 +334,9 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
                           imageFile: null,
                           textureFile: null,
                           defaultAnimation: it.defaultAnimation ?? "",
+                          autoDisableAt: toLocalInput(
+                            (it as any).autoDisableAt
+                          ),
                         });
                         setShowForm(true);
                       }}

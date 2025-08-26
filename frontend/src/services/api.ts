@@ -146,6 +146,7 @@ export interface MerchItem {
   active: boolean;
   shirtTexture?: string; // texture file path for model viewer
   defaultAnimation?: string;
+  autoDisableAt?: string; // ISO timestamp when the item should auto-disable
 }
 
 export async function fetchMerch(): Promise<MerchItem[]> {

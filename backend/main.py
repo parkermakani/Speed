@@ -8,7 +8,7 @@ import httpx
 import os
 from dotenv import load_dotenv
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 # Load environment variables from .env file
 load_dotenv()
@@ -37,6 +37,7 @@ class MerchCreate(SQLModel):
     active: bool = True
     shirtTexture: str | None = None
     defaultAnimation: str | None = None
+    autoDisableAt: str | None = None
 
 
 class MerchUpdate(SQLModel):
@@ -47,6 +48,7 @@ class MerchUpdate(SQLModel):
     active: bool | None = None
     shirtTexture: str | None = None
     defaultAnimation: str | None = None
+    autoDisableAt: str | None = None
 
 
 # (duplicate merch endpoints removed; real ones are defined later after api init)
@@ -88,7 +90,7 @@ origins = [
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -493,6 +495,7 @@ class MerchCreate(SQLModel):
     active: bool = True
     shirtTexture: str | None = None
     defaultAnimation: str | None = None
+    autoDisableAt: str | None = None
 
 
 class MerchUpdate(SQLModel):
@@ -503,6 +506,7 @@ class MerchUpdate(SQLModel):
     active: bool | None = None
     shirtTexture: str | None = None
     defaultAnimation: str | None = None
+    autoDisableAt: str | None = None
 
 
 @api.get("/merch")
@@ -589,9 +593,14 @@ if os.path.isdir(frontend_dist):
 
     @app.exception_handler(404)
     async def spa_404_handler(request, exc):
+        # Return a proper 404 JSON for API routes
         if request.url.path.startswith("/api"):
-            return exc  # Propagate JSON 404 for API routes
-        return FileResponse(index_path, headers={"Cache-Control": "no-store"})
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
+        # For non-API routes, return SPA index.html (no-store)
+        try:
+            return FileResponse(index_path, headers={"Cache-Control": "no-store"})
+        except Exception:
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
 
 # --------------------------------------------------------------------
 

@@ -94,6 +94,9 @@ export const ShopTab: React.FC<ShopTabProps> = ({
     startXRef.current = null;
     pointerIdRef.current = null;
     setDragging?.(false);
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    } catch {}
     if (startX == null) return;
     const deltaX = startX - e.clientX;
     const maxSlide = isDesktop ? 700 : window.innerWidth;
@@ -161,6 +164,12 @@ export const ShopTab: React.FC<ShopTabProps> = ({
     transition: dragging ? "none" : "transform var(--transition-slow)",
     transform: `translateX(-${currentSlide}px)`,
     zIndex: 1400,
+    // iOS Safari gesture/tap polish
+    touchAction: "none",
+    WebkitUserSelect: "none",
+    userSelect: "none",
+    WebkitTapHighlightColor: "transparent",
+    willChange: "transform",
   };
 
   return (
@@ -180,6 +189,7 @@ export const ShopTab: React.FC<ShopTabProps> = ({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       role="button"
       aria-label="Toggle shop"
     >

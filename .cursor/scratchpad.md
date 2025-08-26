@@ -643,3 +643,65 @@ replit.nix
 - No linter issues introduced; manual functional test pending
 
 - Fixed dev JSON parse error by reading `VITE_API_BASE_URL` in `frontend/src/services/api.ts`; falls back to `window.location.origin` for production.
+
+### Mobile Shop Interactions (iOS)
+
+- Goal: Make dragging the Shop tab smooth and reliable on iPhone; ensure the merch list scrolls smoothly with native momentum on mobile.
+
+#### High-level Task Breakdown (Mobile Shop)
+
+1. Improve ShopTab drag on iOS (disable default touch behaviors, add cancel handling, smooth transforms). Success: No accidental page scroll, smooth drag, tap still toggles.
+2. Use native horizontal scrolling for merch list on mobile (remove custom drag handlers, set correct touch-action). Success: Smooth inertial scroll with scroll-snap; taps on cards/buttons unaffected.
+
+### Project Status Board (Mobile Shop)
+
+- [in_progress] Improve ShopTab drag on iOS
+- [ ] Switch merch list to native horizontal scroll on mobile
+
+### Current Status / Progress Tracking (Mobile Shop)
+
+- Starting with ShopTab drag improvements: add `touch-action: none`, disable tap highlight/selection, add `will-change: transform`, and handle `pointercancel` similar to `pointerup`.
+
+### Executor's Feedback or Assistance Requests (Mobile Shop)
+
+- After I push the ShopTab change, please test on an actual iPhone and report: 1) Does the tab drag smoothly without scrolling the page? 2) Does a quick tap still toggle reliably?
+
+### New Feature: Merch time-limit countdown and auto-disable
+
+Background and Motivation
+
+- Each merch item may have a limited availability window. We want to display a countdown next to the price and automatically disable items past the set time.
+
+Key Challenges and Analysis
+
+- Data model must include an `autoDisableAt` ISO timestamp.
+- Backend must read/write this field and return it in `/api/merch`.
+- Admin UI must support editing via a datetime picker and quick-clear.
+- Frontend must render a live countdown efficiently without excessive re-renders.
+- Expired items should not be purchasable; either hidden on fetch or disabled in UI.
+
+High-level Task Breakdown
+
+1. Backend: Add `autoDisableAt` to merch create/update schemas and pass-through to Firestore repository. Success: Field persisted and returned by `/api/merch`.
+2. Frontend types: Extend `MerchItem` and API helpers to include `autoDisableAt`. Success: Type compiles; field visible in fetched data.
+3. Admin UI: Add datetime-local field to `AdminMerch` create/edit form and table display; allow clearing value. Success: Admin can set/clear time; updates persist.
+4. Merch UI: Show countdown to `autoDisableAt` next to price; disable Add to Cart and mark as "Unavailable" when expired; optionally filter out expired in fetch. Success: Countdown ticks every second; UX clear on expiry.
+
+Project Status Board (Merch Countdown)
+
+- [ ] Backend: Add `autoDisableAt` to merch models and API
+- [ ] Frontend: Extend MerchItem type and API
+- [ ] Admin UI: Edit/display `autoDisableAt`
+- [ ] Merch UI: Countdown and disable/hide on expiry
+
+Current Status / Progress Tracking
+
+- Starting backend schema updates in FastAPI and Firestore repo.
+
+Executor's Feedback or Assistance Requests
+
+- None yet; will request confirmation whether to hide expired items from the public list or show with disabled state.
+
+Lessons
+
+- Prefer server-side filtering of expired items to avoid client clock skew; if not feasible, include both server and client guards.

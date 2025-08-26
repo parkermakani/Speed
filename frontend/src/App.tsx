@@ -110,8 +110,8 @@ function App() {
             tips.start();
           }}
           style={{
-            width: 40,
-            height: 40,
+            width: "100%",
+            height: "100%",
             background: "transparent",
             border: "none",
             outline: "none",
@@ -122,12 +122,7 @@ function App() {
             cursor: "pointer",
           }}
         >
-          <Icon
-            name="question-mark"
-            size={40}
-            preserveColors={false}
-            fill="var(--color-land-dark)"
-          />
+          <Icon name="question-mark" size={28} preserveColors />
         </button>
       </div>
       {/* Overlay stack: header + quote */}

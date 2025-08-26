@@ -141,20 +141,59 @@ export const TipProvider: React.FC<{ children: React.ReactNode }> = ({
       setIndex(0);
       return;
     }
-    const t = window.setTimeout(() => {
-      sessionStorage.setItem(STORAGE_SESSION_KEY, "1");
-      setNudgeVisible(true);
-      const hideTimer = window.setTimeout(() => {
-        setNudgeExiting(true);
-        const hideEndTimer = window.setTimeout(() => {
-          setNudgeVisible(false);
-          setNudgeExiting(false);
-        }, 180) as unknown as number;
-        nudgeHideEndTimerRef.current = hideEndTimer;
-      }, 5000) as unknown as number;
-      nudgeHideTimerRef.current = hideTimer;
-    }, 12000) as unknown as number;
-    nudgeTimerRef.current = t;
+    // Start a mobile-aware timer that pauses while any drawer is open
+    const startDelayMs = 12000;
+    let remaining = startDelayMs;
+    let lastTick = Date.now();
+    let ticking = false;
+
+    const isAnyDrawerOpen = () => {
+      try {
+        const c = Number(document.body.dataset.drawersOpen || "0");
+        return c > 0;
+      } catch {
+        return false;
+      }
+    };
+
+    const tick = () => {
+      if (!ticking) return;
+      const now = Date.now();
+      const delta = now - lastTick;
+      lastTick = now;
+      // On mobile, pause countdown while any drawer is open
+      const isMobileEnv =
+        window.matchMedia && window.matchMedia("(max-width: 767px)").matches;
+      if (!(isMobileEnv && isAnyDrawerOpen())) {
+        remaining -= delta;
+      }
+      if (remaining <= 0) {
+        ticking = false;
+        sessionStorage.setItem(STORAGE_SESSION_KEY, "1");
+        setNudgeVisible(true);
+        const hideTimer = window.setTimeout(() => {
+          setNudgeExiting(true);
+          const hideEndTimer = window.setTimeout(() => {
+            setNudgeVisible(false);
+            setNudgeExiting(false);
+          }, 180) as unknown as number;
+          nudgeHideEndTimerRef.current = hideEndTimer;
+        }, 5000) as unknown as number;
+        nudgeHideTimerRef.current = hideTimer;
+        return;
+      }
+      nudgeTimerRef.current = window.setTimeout(tick, 250) as unknown as number;
+    };
+
+    ticking = true;
+    lastTick = Date.now();
+    nudgeTimerRef.current = window.setTimeout(tick, 250) as unknown as number;
+
+    const onDrawer = () => {
+      // force immediate tick recalibration when drawer changes
+      lastTick = Date.now();
+    };
+    window.addEventListener("app:drawer-change", onDrawer as EventListener);
     return () => {
       if (nudgeTimerRef.current != null) {
         window.clearTimeout(nudgeTimerRef.current);
@@ -168,6 +207,10 @@ export const TipProvider: React.FC<{ children: React.ReactNode }> = ({
         window.clearTimeout(nudgeHideEndTimerRef.current);
         nudgeHideEndTimerRef.current = null;
       }
+      window.removeEventListener(
+        "app:drawer-change",
+        onDrawer as EventListener
+      );
     };
   }, [steps, debug]);
 

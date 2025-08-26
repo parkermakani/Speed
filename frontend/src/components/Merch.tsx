@@ -189,39 +189,85 @@ export const Merch: React.FC = () => {
     document.head.appendChild(styleEl);
   }, []);
 
+  // Countdown component
+  const Countdown: React.FC<{ targetIso: string }> = ({ targetIso }) => {
+    const [now, setNow] = useState<number>(() => Date.now());
+    useEffect(() => {
+      const id = setInterval(() => setNow(Date.now()), 1000);
+      return () => clearInterval(id);
+    }, []);
+    const target = new Date(targetIso).getTime();
+    const diff = Math.max(0, target - now);
+    if (!isFinite(diff) || diff <= 0) {
+      return (
+        <span style={{ color: "var(--color-text-secondary)" }}>Ended</span>
+      );
+    }
+    const totalSec = Math.floor(diff / 1000);
+    const days = Math.floor(totalSec / 86400);
+    const hours = Math.floor((totalSec % 86400) / 3600);
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    const seconds = totalSec % 60;
+    const parts: string[] = [];
+    if (days > 0) parts.push(`${days}d`);
+    parts.push(`${hours}h`);
+    parts.push(`${minutes}m`);
+    parts.push(`${seconds}s`);
+    return (
+      <span style={{ color: "var(--color-primary)", fontWeight: 600 }}>
+        {parts.join(" ")}
+      </span>
+    );
+  };
+
   return (
     <div
       style={{
         padding: isMobile ? "var(--space-4)" : "var(--space-6)",
-        overflowX: "hidden",
+        overflow: "hidden",
         width: "100%",
         boxSizing: "border-box",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <div
         style={{
           display: "flex",
           gap: "var(--space-4)",
-          alignItems: isMobile ? "stretch" : "flex-start",
+          alignItems: "stretch",
           flexDirection: isMobile ? "column" : "row",
           width: "100%",
           boxSizing: "border-box",
+          flex: 1,
+          minHeight: 0,
         }}
       >
         {/* Left: 3D viewer */}
-        <div style={{ width: "100%", boxSizing: "border-box" }}>
+        <div
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            display: "flex",
+            flexDirection: "column",
+            flex: isMobile ? undefined : "1 1 60%",
+            minHeight: 0,
+            overflow: "hidden",
+          }}
+        >
           {isMobile ? (
             <div
               style={{
                 display: "flex",
-                alignItems: "center",
+                alignItems: "stretch",
                 width: "100%",
                 boxSizing: "border-box",
               }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
                 <ModelViewer
-                  height="45vh"
+                  height="40vh"
                   isMobile={isMobile}
                   shirtTexture={shirtTexture}
                   animation={currentAnim}
@@ -237,11 +283,13 @@ export const Merch: React.FC = () => {
                   style={{
                     display: "flex",
                     flexDirection: "column",
+                    justifyContent: "space-evenly",
                     gap: "var(--space-1)",
                     marginLeft: "var(--space-2)",
                     backgroundColor: "var(--color-bg)",
                     padding: "var(--space-2)",
                     borderRadius: "var(--radius-md)",
+                    alignSelf: "stretch",
                   }}
                 >
                   {animNames.map((n) => {
@@ -289,37 +337,47 @@ export const Merch: React.FC = () => {
             </div>
           ) : (
             <>
-              <ModelViewer
-                height="70vh"
-                isMobile={isMobile}
-                shirtTexture={shirtTexture}
-                animation={currentAnim}
-                onAnimationsLoaded={(names) => {
-                  setAnimNames(names);
-                  if (!currentAnim) setCurrentAnim(names[0]);
+              <div
+                style={{
+                  flex: "1 1 auto",
+                  minHeight: 0,
+                  display: "flex",
                 }}
-              />
+              >
+                <ModelViewer
+                  height="100%"
+                  isMobile={isMobile}
+                  shirtTexture={shirtTexture}
+                  animation={currentAnim}
+                  onAnimationsLoaded={(names) => {
+                    setAnimNames(names);
+                    if (!currentAnim) setCurrentAnim(names[0]);
+                  }}
+                />
+              </div>
               {/* Animation shape buttons – 3 on top, 4 on bottom */}
-              {animNames.length > 0 && (
+              <div
+                style={{
+                  marginTop: "var(--space-3)",
+                  position: "relative",
+                  width: "100%",
+                  overflow: "hidden",
+                  flex: "0 0 auto",
+                  minHeight: animNames.length > 0 ? 140 : 64,
+                }}
+              >
+                {/* Stripes layer behind the union (stars) block and extending right */}
                 <div
                   style={{
-                    marginTop: "var(--space-3)",
-                    position: "relative",
-                    width: "100%",
-                    overflow: "hidden",
+                    position: "absolute",
+                    inset: 0,
+                    background:
+                      "repeating-linear-gradient(to bottom, var(--color-primary) 0 12px, var(--color-star-white) 12px 24px)",
+                    zIndex: 0,
                   }}
-                >
-                  {/* Stripes layer behind the union (stars) block and extending right */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      background:
-                        "repeating-linear-gradient(to bottom, var(--color-primary) 0 12px, var(--color-star-white) 12px 24px)",
-                      zIndex: 0,
-                    }}
-                  />
-                  {/* Union (stars) block */}
+                />
+                {/* Union (stars) block */}
+                {animNames.length > 0 && (
                   <div
                     data-tip-target="anim-icons"
                     style={{
@@ -386,10 +444,9 @@ export const Merch: React.FC = () => {
                       )
                     )}
                   </div>
-                  {/* Extend stripes below the union */}
-                  <div style={{ height: 64 }} />
-                </div>
-              )}
+                )}
+                {/* Container flexes to bottom; stripes background (absolute) already covers full height */}
+              </div>
             </>
           )}
         </div>
@@ -400,161 +457,187 @@ export const Merch: React.FC = () => {
             isMobile ? "merch-products-grid" : "merch-products-grid desktop"
           }
           style={{
-            flex: isMobile ? "initial" : "0 0 40%",
+            flex: isMobile ? "0 0 auto" : "0 0 40%",
             width: isMobile ? "100%" : undefined,
-            display: isMobile ? "grid" : "grid",
+            display: isMobile ? "grid" : "flex",
+            flexDirection: isMobile ? undefined : "column",
             gridAutoFlow: isMobile ? "column" : undefined,
             gridAutoColumns: isMobile ? "40vw" : undefined,
             overflowX: isMobile ? "auto" : undefined,
             WebkitOverflowScrolling: isMobile ? ("touch" as any) : undefined,
             overscrollBehaviorX: isMobile ? "contain" : undefined,
-            gridTemplateColumns: !isMobile
-              ? "repeat(auto-fill, minmax(140px, 1fr))"
-              : undefined,
+            gridTemplateColumns: isMobile ? undefined : undefined,
             gap: isMobile ? "var(--space-2)" : "var(--space-4)",
-            maxHeight: isMobile ? undefined : "89vh",
+            maxHeight: isMobile ? undefined : "100%",
+            height: isMobile ? "auto" : "100%",
             overflowY: isMobile ? "hidden" : "auto",
+            minHeight: 0,
             boxSizing: "border-box",
-            height: isMobile ? "40vh" : undefined,
             alignItems: isMobile ? "stretch" : undefined,
             scrollSnapType: isMobile ? ("x mandatory" as any) : undefined,
             cursor: isMobile ? "grab" : undefined,
             userSelect: isMobile ? ("none" as any) : undefined,
-            touchAction: isMobile ? ("pan-y" as any) : undefined,
+            touchAction: isMobile ? ("pan-x" as any) : undefined,
             scrollBehavior: isMobile ? ("smooth" as any) : undefined,
           }}
           ref={productsRef}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerEnd}
-          onPointerLeave={onPointerEnd}
+          onPointerDown={isMobile ? undefined : onPointerDown}
+          onPointerMove={isMobile ? undefined : onPointerMove}
+          onPointerUp={isMobile ? undefined : onPointerEnd}
+          onPointerLeave={isMobile ? undefined : onPointerEnd}
         >
           {loading && <p>Loading…</p>}
           {!loading && products.length === 0 && <p>No products available.</p>}
-          {products.map((p) => (
-            <Card
-              key={p.id}
-              clickable
-              padding={isMobile ? "none" : "md"}
-              style={{
-                background: "var(--color-bg-elevated)",
-                cursor: "pointer",
-                width: isMobile ? "100%" : undefined,
-                height: isMobile ? "100%" : undefined,
-                display: isMobile ? "flex" : undefined,
-                flexDirection: isMobile ? "column" : undefined,
-                position: "relative",
-                boxSizing: "border-box",
-                overflow: "hidden",
-                scrollSnapAlign: isMobile ? ("start" as any) : undefined,
-                padding: "var(--space-2)",
-              }}
-              onClick={() => {
-                if (didDragRef.current) return;
-                console.log("Preview merch: ", p.name, p.shirtTexture);
-                setShirtTexture(p.shirtTexture);
-                if (p.defaultAnimation) setCurrentAnim(p.defaultAnimation);
-              }}
-            >
-              <img
-                src={p.imageUrl}
-                alt={p.name}
+          {products.map((p) => {
+            const isExpired = p.autoDisableAt
+              ? Date.now() >= new Date(p.autoDisableAt).getTime()
+              : false;
+            return (
+              <Card
+                key={p.id}
+                clickable
+                padding={isMobile ? "none" : "md"}
                 style={{
-                  width: "100%",
-                  height: isMobile ? "50%" : "auto",
-                  objectFit: isMobile ? "cover" : undefined,
-                  borderRadius: "var(--radius-md)",
-                  display: "block",
-                  marginBottom: -14,
-                }}
-                data-tip-target={
-                  products[0]?.id === p.id ? "merch-card" : undefined
-                }
-              />
-              {/* Expand/collapse button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (didDragRef.current) return; // treat as drag, not click
-                  setExpandedImageUrl((prev) =>
-                    prev === p.imageUrl ? null : p.imageUrl
-                  );
-                }}
-                aria-label={
-                  expandedImageUrl === p.imageUrl
-                    ? "Collapse image"
-                    : "Expand image"
-                }
-                style={{
-                  position: "absolute",
-                  top: 8,
-                  right: 8,
-                  background: "transparent",
-                  border: "none",
-                  outline: "none",
-                  boxShadow: "none",
+                  background: "var(--color-bg-elevated)",
                   cursor: "pointer",
-                  padding: 6,
-                  zIndex: 1000,
-                }}
-              >
-                <Icon
-                  name={expandedImageUrl === p.imageUrl ? "collapse" : "expand"}
-                  size={18}
-                  color="var(--color-bg-elevated)"
-                />
-              </button>
-              <Stack
-                spacing="sm"
-                style={{
-                  marginTop: "var(--space-3)",
-                  flex: isMobile ? 1 : undefined,
-                  minHeight: isMobile ? 0 : undefined,
-                  overflow: isMobile ? "hidden" : undefined,
+                  width: isMobile ? "100%" : undefined,
+                  height: isMobile ? "auto" : undefined,
+                  display: isMobile ? "flex" : undefined,
+                  flex: isMobile ? undefined : "0 0 auto",
+                  flexDirection: isMobile ? "column" : undefined,
+                  position: "relative",
                   boxSizing: "border-box",
+                  overflow: "hidden",
+                  scrollSnapAlign: isMobile ? ("center" as any) : undefined,
+                  padding: "var(--space-2)",
+                }}
+                onClick={() => {
+                  if (didDragRef.current) return;
+                  console.log("Preview merch: ", p.name, p.shirtTexture);
+                  setShirtTexture(p.shirtTexture);
+                  if (p.defaultAnimation) setCurrentAnim(p.defaultAnimation);
                 }}
               >
-                <h3
+                <img
+                  src={p.imageUrl}
+                  alt={p.name}
                   style={{
-                    margin: 0,
-                    color: "var(--color-text)",
-                    fontSize: isMobile ? "1rem" : undefined,
-                    display: "-webkit-box",
-                    WebkitLineClamp: "2" as any,
-                    WebkitBoxOrient: "vertical" as any,
-                    overflow: "hidden",
-                    whiteSpace: "normal",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {p.name}
-                </h3>
-                <p
-                  style={{
-                    margin: 0,
-                    color: "var(--color-text-secondary)",
-                    fontSize: isMobile ? "0.8rem" : undefined,
+                    width: "100%",
+                    height: isMobile ? "auto" : "auto",
+                    objectFit: isMobile ? undefined : undefined,
+                    borderRadius: "var(--radius-md)",
+                    display: "block",
+                    marginBottom: -14,
                   }}
                   data-tip-target={
-                    products[0]?.id === p.id ? "time-limit" : undefined
+                    products[0]?.id === p.id ? "merch-card" : undefined
                   }
-                >
-                  {p.price}
-                </p>
-                <Button
-                  variant="primary"
-                  fullWidth
+                />
+                {/* Expand/collapse button */}
+                <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    cart.addItem(p, 1);
+                    if (didDragRef.current) return; // treat as drag, not click
+                    setExpandedImageUrl((prev) =>
+                      prev === p.imageUrl ? null : p.imageUrl
+                    );
+                  }}
+                  aria-label={
+                    expandedImageUrl === p.imageUrl
+                      ? "Collapse image"
+                      : "Expand image"
+                  }
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    boxShadow: "none",
+                    cursor: "pointer",
+                    padding: 6,
+                    zIndex: 1000,
                   }}
                 >
-                  Add to Cart
-                </Button>
-              </Stack>
-            </Card>
-          ))}
+                  <Icon
+                    name={
+                      expandedImageUrl === p.imageUrl ? "collapse" : "expand"
+                    }
+                    size={18}
+                    color="var(--color-bg-elevated)"
+                  />
+                </button>
+                <Stack
+                  spacing="sm"
+                  style={{
+                    marginTop: "var(--space-3)",
+                    minHeight: isMobile ? 0 : undefined,
+                    overflow: "hidden",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <h3
+                    style={{
+                      margin: 0,
+                      color: "var(--color-text)",
+                      fontSize: isMobile ? "1rem" : undefined,
+                      display: "-webkit-box",
+                      WebkitLineClamp: "2" as any,
+                      WebkitBoxOrient: "vertical" as any,
+                      overflow: "hidden",
+                      whiteSpace: "normal",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {p.name}
+                  </h3>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "var(--space-2)",
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "var(--color-text-secondary)",
+                        fontSize: isMobile ? "0.8rem" : undefined,
+                      }}
+                      data-tip-target={
+                        products[0]?.id === p.id ? "time-limit" : undefined
+                      }
+                    >
+                      {"$" + p.price + " USD"}
+                    </p>
+                    {p.autoDisableAt && (
+                      <div
+                        style={{ whiteSpace: "nowrap" }}
+                        aria-label="Time remaining"
+                      >
+                        <Countdown targetIso={p.autoDisableAt} />
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="primary"
+                    fullWidth
+                    disabled={isExpired}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isExpired) return;
+                      cart.addItem(p, 1);
+                    }}
+                  >
+                    {isExpired ? "Unavailable" : "Add to Cart"}
+                  </Button>
+                </Stack>
+              </Card>
+            );
+          })}
         </div>
         {expandedImageUrl && (
           <div

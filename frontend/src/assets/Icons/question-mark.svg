@@ -1,1 +1,6 @@
-<svg class="svg-icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"><path d="M512 85.333333a426.666667 426.666667 0 1 0 426.666667 426.666667A426.666667 426.666667 0 0 0 512 85.333333z m0 682.666667a42.666667 42.666667 0 1 1 42.666667-42.666667 42.666667 42.666667 0 0 1-42.666667 42.666667z m42.666667-220.16V597.333333a42.666667 42.666667 0 0 1-85.333334 0v-85.333333a42.666667 42.666667 0 0 1 42.666667-42.666667 64 64 0 1 0-64-64 42.666667 42.666667 0 0 1-85.333333 0 149.333333 149.333333 0 1 1 192 142.506667z"  /></svg>
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle fill (land color) with dark stroke ring -->
+  <circle cx="512" cy="512" r="464" fill="var(--color-land)" stroke="var(--color-land-dark)" stroke-width="64" />
+  <!-- Question mark glyph (filled, land-dark) -->
+  <text x="512" y="540" text-anchor="middle" dominant-baseline="middle" font-size="520" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-weight="700" fill="var(--color-land-dark)">?</text>
+</svg>

@@ -59,7 +59,7 @@ function FlatMapInner({
 }: FlatMapProps) {
   const [selectedCity, setSelectedCity] = useState<JourneyCity | null>(null);
   const isMobile = useMediaQuery("(max-width: 1100px)");
-  const initialZoom = isMobile ? 3 : 4; // zoom level higher on desktop
+  const initialZoom = isMobile ? 3 : 4; // start more zoomed out on mobile
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
@@ -412,10 +412,11 @@ function FlatMapInner({
 
     if (!containerRef.current) return;
 
-    // Expanded bounds give users room to pan/zoom slightly beyond mainland USA
-    const usaBounds: [number, number][] = [
-      [-165, 5], // west / south margins extended ~10°
-      [-25, 65], // east / north margins extended ~5–6°
+    // Split pan bounds (very large)
+    // Pan bounds are large so they don't constrain zoom-out on any device
+    const panBounds: [number, number][] = [
+      [-180, -85],
+      [180, 85],
     ];
 
     try {
@@ -424,8 +425,8 @@ function FlatMapInner({
         style:
           import.meta.env.VITE_MAPBOX_STYLE ||
           "mapbox://styles/mapbox/light-v11", // sensible fallback
-        center: [-95, 40], // rough USA centre
-        zoom: initialZoom, // mobile uses 3, desktop uses 4 for closer view
+        center: [lng, lat], // start centered on current city
+        zoom: initialZoom,
         pitch: 0,
         bearing: 0,
         dragRotate: false,
@@ -439,13 +440,13 @@ function FlatMapInner({
     }
 
     // Immediately constrain view
-    // Allow a bit more zoom-out and keep loose bounds
-    mapRef.current.setMinZoom(3.0);
-    mapRef.current.setMaxBounds(usaBounds as any);
+    // Allow a bit more zoom-out on mobile and keep very loose pan bounds
+    mapRef.current.setMinZoom(isMobile ? 3 : 4.0);
+    mapRef.current.setMaxBounds(panBounds as any);
 
     mapRef.current.on("load", () => {
-      // refine bounds & minzoom now that style is ready
-      mapRef.current!.fitBounds(usaBounds as any, { padding: 60, duration: 0 });
+      // ensure we remain centered on current city once style has loaded
+      mapRef.current!.jumpTo({ center: [lng, lat], zoom: initialZoom });
       // Keep previous minZoom (1.0) so user can zoom out a bit
 
       if (!HIDE) {
