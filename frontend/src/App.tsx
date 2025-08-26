@@ -79,7 +79,7 @@ function App() {
             position: "fixed",
             top: "var(--space-4)",
             right: "var(--space-4)",
-            zIndex: 100,
+            zIndex: 2000,
           }}
         >
           <Button
@@ -99,7 +99,7 @@ function App() {
           position: "fixed",
           top: "var(--space-4)",
           left: "var(--space-4)",
-          zIndex: 120,
+          zIndex: 2000,
         }}
       >
         <button
@@ -135,7 +135,7 @@ function App() {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          zIndex: 60,
+          zIndex: 1500,
         }}
       >
         <Header />

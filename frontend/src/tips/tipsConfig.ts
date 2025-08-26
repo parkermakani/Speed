@@ -1,4 +1,11 @@
 import type { TipStep } from "../types";
+import tip1 from "../assets/Tips/tip-1.png";
+import tip2 from "../assets/Tips/tip-2.png";
+import tip3 from "../assets/Tips/tip-3.png";
+import tip4 from "../assets/Tips/tip-4.png";
+import tip5 from "../assets/Tips/tip-5.png";
+import tip6 from "../assets/Tips/tip-6.png";
+import tip7 from "../assets/Tips/tip-7.png";
 
 // Helper query selectors for known targets
 //const q = (sel: string) => sel;
@@ -6,7 +13,7 @@ import type { TipStep } from "../types";
 export const tipsConfig: TipStep[] = [
   {
     id: "Tip0",
-    imageUrl: "/src/assets/Tips/tip-7.png",
+    imageUrl: tip7,
     target: '[data-tip-target="help"]',
     continueMode: "tapAnywhere",
     placementDesktop: {
@@ -26,7 +33,7 @@ export const tipsConfig: TipStep[] = [
   },
   {
     id: "Tip-Quote",
-    imageUrl: "/src/assets/Tips/tip-4.png",
+    imageUrl: tip4,
     target: '[data-tip-target="quote"]',
     continueMode: "tapAnywhere",
     placementDesktop: {
@@ -46,7 +53,7 @@ export const tipsConfig: TipStep[] = [
   },
   {
     id: "Tip-CurrentCity",
-    imageUrl: "/src/assets/Tips/tip-3.png",
+    imageUrl: tip3,
     target: '[data-tip-target="current-city"]',
     continueMode: "tapAnywhere",
     placementDesktop: {
@@ -66,7 +73,7 @@ export const tipsConfig: TipStep[] = [
   },
   {
     id: "Tip3",
-    imageUrl: "/src/assets/Tips/tip-5.png",
+    imageUrl: tip5,
     target: '[data-tip-target="shoptab"]',
     continueMode: "tapAnywhere",
     placementDesktop: {
@@ -86,7 +93,7 @@ export const tipsConfig: TipStep[] = [
   },
   {
     id: "Tip-Merch",
-    imageUrl: "/src/assets/Tips/tip-2.png",
+    imageUrl: tip2,
     target: '[data-tip-target="merch-card"]',
     continueMode: "tapAnywhere",
     placementDesktop: {
@@ -106,7 +113,7 @@ export const tipsConfig: TipStep[] = [
   },
   {
     id: "Tip-AnimIcons",
-    imageUrl: "/src/assets/Tips/tip-1.png",
+    imageUrl: tip1,
     target: '[data-tip-target="anim-icons"]',
     continueMode: "tapAnywhere",
     placementDesktop: {
@@ -125,7 +132,7 @@ export const tipsConfig: TipStep[] = [
   },
   {
     id: "Tip-MerchCard",
-    imageUrl: "/src/assets/Tips/tip-6.png",
+    imageUrl: tip6,
     target: '[data-tip-target="time-limit"]',
     continueMode: "tapAnywhere",
     placementDesktop: {
