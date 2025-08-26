@@ -27,6 +27,8 @@ export interface City {
   is_current: boolean;
   keywords?: string | null;
   lastCurrentAt?: string | null;
+  locatorIconUrl?: string | null; // preferred field name
+  locatorPng?: string | null; // legacy/alias from Firestore
 }
 
 export interface JourneyCity {

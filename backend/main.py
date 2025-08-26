@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends, Query, APIRouter
+from fastapi import UploadFile, File
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select, SQLModel
@@ -25,6 +26,7 @@ from backend.auth import get_current_admin
 
 from backend.scheduler import start_scheduler
 from backend.scheduler import reload_settings
+from backend.firebase import get_bucket
 
 # -------------------- Merch Endpoints --------------------
 
@@ -399,6 +401,8 @@ async def list_cities():
             "lng": d.get("lng", 0.0),
             "order": d.get("order", 0),
             "is_current": d.get("isCurrent", False),
+            "locatorIconUrl": d.get("locatorIconUrl"),
+            "locatorPng": d.get("locatorPng"),
         })
     return result
 
@@ -431,6 +435,8 @@ async def update_city(
         "isCurrent": data.get("is_current"),
         "lastCurrentAt": data.get("last_current_at"),
         "keywords": data.get("keywords"),
+        "locatorIconUrl": data.get("locatorIconUrl"),
+        "locatorPng": data.get("locatorPng"),
     }
     payload = {k: v for k, v in payload.items() if v is not None}
 
@@ -446,6 +452,8 @@ async def update_city(
         "is_current": updated_doc.get("isCurrent", False),
         "lastCurrentAt": updated_doc.get("lastCurrentAt"),
         "keywords": updated_doc.get("keywords"),
+        "locatorIconUrl": updated_doc.get("locatorIconUrl"),
+        "locatorPng": updated_doc.get("locatorPng"),
     }
 
     # If now current, also patch status doc
@@ -463,6 +471,42 @@ async def update_city(
 @api.get("/journey")
 async def get_journey():
     return repo.compute_journey()
+
+# -------------------- City locator icon upload --------------------
+
+
+@api.post("/cities/{city_id}/locator-icon")
+async def upload_city_locator_icon(
+    city_id: int,
+    file: UploadFile = File(...),
+    current_admin=Depends(get_current_admin),
+):
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="No file uploaded")
+    content_type = (file.content_type or "").lower()
+    if content_type not in ("image/png",):
+        raise HTTPException(status_code=400, detail="Only PNG images are allowed")
+
+    city_doc = repo.get_city(city_id)
+    if not city_doc:
+        raise HTTPException(status_code=404, detail="City not found")
+
+    bucket = get_bucket()
+    from datetime import datetime as _dt
+    ts = _dt.utcnow().strftime("%Y%m%d%H%M%S")
+    blob_path = f"cities/{city_id}/locator-{ts}.png"
+    blob = bucket.blob(blob_path)
+    data = await file.read()
+    blob.upload_from_string(data, content_type=content_type)
+    try:
+        blob.make_public()
+        public_url = blob.public_url
+    except Exception:
+        public_url = blob.generate_signed_url(expiration=timedelta(days=365))
+
+    repo.update_city(city_id, {"locatorIconUrl": public_url, "locatorPng": public_url})
+
+    return {"url": public_url}
 
 # -------------------- Sleep mode endpoints --------------------
 

@@ -126,6 +126,31 @@ export async function updateCity(
   return await res.json();
 }
 
+export async function uploadCityLocatorIcon(
+  id: number,
+  file: File,
+  token: string
+): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE_URL}/api/cities/${id}/locator-icon`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new ApiError(
+      res.status,
+      err.detail || "Failed to upload locator icon"
+    );
+  }
+  const data = await res.json();
+  return data.url as string;
+}
+
 export async function fetchJourney(): Promise<JourneyResponse> {
   const res = await fetch(`${API_BASE_URL}/api/journey`);
   if (!res.ok) {

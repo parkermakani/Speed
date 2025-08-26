@@ -174,8 +174,8 @@ export const Drawer: React.FC<DrawerProps> = ({
     backgroundColor: isOpen ? "rgba(0,0,0,0.4)" : "transparent",
     transition: "background-color var(--transition-base)",
     pointerEvents: isOpen || (slideOffsetPx ?? 0) > 0 ? "auto" : "none",
-    // Ensure above ShopTab (z 1400) on mobile
-    zIndex: zIndex ?? (isMobile ? 1500 : 1300),
+    // Ensure above Header (z 1500) and ShopTab (z 1400) on all breakpoints
+    zIndex: zIndex ?? 2500,
   };
 
   // Compute transform: prefer explicit slide offset when provided (dragging),
@@ -212,7 +212,7 @@ export const Drawer: React.FC<DrawerProps> = ({
     styleEl.id = styleTagId;
     styleEl.innerHTML = `
       .drawer-content { width: 100%; max-width: 100%; }
-      @media (min-width: 1100px) {
+      @media (min-width: 768px) {
         .drawer-content {
           width: ${desktopWidth};
           max-width: ${desktopWidth};

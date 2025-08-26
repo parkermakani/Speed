@@ -39,7 +39,7 @@ export const Merch: React.FC = () => {
   );
   const [animNames, setAnimNames] = useState<string[]>([]);
   const [currentAnim, setCurrentAnim] = useState<string | undefined>(undefined);
-  const isDesktop = useMediaQuery("(min-width: 1100px)");
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   const isMobile = !isDesktop;
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
   const tipIndex = isMobile ? 1 : 0;
@@ -477,7 +477,8 @@ export const Merch: React.FC = () => {
             display: isMobile ? "grid" : "flex",
             flexDirection: isMobile ? undefined : "column",
             gridAutoFlow: isMobile ? "column" : undefined,
-            gridAutoColumns: isMobile ? "40vw" : undefined,
+            // Keep consistent card widths around the breakpoint without exploding sizes
+            gridAutoColumns: isMobile ? "clamp(220px, 40vw, 320px)" : undefined,
             overflowX: isMobile ? "auto" : undefined,
             WebkitOverflowScrolling: isMobile ? ("touch" as any) : undefined,
             overscrollBehaviorX: isMobile ? "contain" : undefined,
@@ -496,10 +497,11 @@ export const Merch: React.FC = () => {
             scrollBehavior: isMobile ? ("smooth" as any) : undefined,
           }}
           ref={productsRef}
-          onPointerDown={isMobile ? undefined : onPointerDown}
-          onPointerMove={isMobile ? undefined : onPointerMove}
-          onPointerUp={isMobile ? undefined : onPointerEnd}
-          onPointerLeave={isMobile ? undefined : onPointerEnd}
+          // Enable drag-to-scroll only on mobile
+          onPointerDown={isMobile ? onPointerDown : undefined}
+          onPointerMove={isMobile ? onPointerMove : undefined}
+          onPointerUp={isMobile ? onPointerEnd : undefined}
+          onPointerLeave={isMobile ? onPointerEnd : undefined}
         >
           {loading && <p>Loading…</p>}
           {!loading && products.length === 0 && <p>No products available.</p>}
@@ -540,7 +542,9 @@ export const Merch: React.FC = () => {
                   style={{
                     width: "100%",
                     height: isMobile ? "auto" : "auto",
-                    objectFit: isMobile ? undefined : undefined,
+                    // Cap image height on mobile to prevent oversized cards at the breakpoint
+                    maxHeight: isMobile ? 220 : undefined,
+                    objectFit: isMobile ? "cover" : undefined,
                     borderRadius: "var(--radius-md)",
                     display: "block",
                     marginBottom: -14,

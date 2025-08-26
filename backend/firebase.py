@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 from firebase_admin import App as FirebaseApp, credentials, initialize_app
+from firebase_admin import storage  # type: ignore
 
 firebase_app: FirebaseApp | None = None
 
@@ -46,3 +47,22 @@ def init_firebase() -> FirebaseApp:
 
 # Initialise on import for convenience
 init_firebase()
+
+
+def get_storage_bucket_name() -> str | None:
+    """Return the Firebase Storage bucket name from env or default app config.
+
+    If FIREBASE_STORAGE_BUCKET is not set, firebase_admin.storage will use
+    the default bucket bound to the Firebase app (if configured).
+    """
+    return os.getenv("FIREBASE_STORAGE_BUCKET")
+
+
+def get_bucket():
+    """Return a Google Cloud Storage bucket for file uploads."""
+    init_firebase()
+    bucket_name = get_storage_bucket_name()
+    if bucket_name:
+        return storage.bucket(bucket_name)
+    return storage.bucket()
+

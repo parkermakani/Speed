@@ -29,7 +29,7 @@ function App() {
   const [shopDragging, setShopDragging] = useState(false);
   const [showCart, setShowCart] = useState(false);
   const cart = useCart();
-  const isDesktop = useMediaQuery("(min-width: 1100px)");
+  const isDesktop = useMediaQuery("(min-width: 768px)");
 
   // Memoize heavy props for FlatMap so it doesn't re-render during drawer drag
   const memoPath = useMemo(() => {

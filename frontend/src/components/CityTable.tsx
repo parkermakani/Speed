@@ -4,6 +4,7 @@ import {
   fetchCities,
   toggleCurrentCity,
   updateCity,
+  uploadCityLocatorIcon,
   ApiError,
 } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
@@ -71,11 +72,18 @@ export const CityTable: React.FC<CityTableProps> = ({ onChange }) => {
     city: string;
     state: string;
     keywords: string;
+    file?: File | null;
   }) => {
     if (!token || !editingCity) return;
     setLoading(true);
     try {
-      await updateCity(editingCity.id, payload, token);
+      const { file, ...updatePayload } = payload;
+      // First update textual fields
+      await updateCity(editingCity.id, updatePayload, token);
+      // Then upload file if provided
+      if (file) {
+        await uploadCityLocatorIcon(editingCity.id, file, token);
+      }
     } catch (e) {
       /* ignore */
     } finally {

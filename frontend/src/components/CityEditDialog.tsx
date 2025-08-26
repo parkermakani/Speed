@@ -5,7 +5,12 @@ import { Card, Stack, Text, FormField, Button, Input } from "./primitives";
 interface CityEditDialogProps {
   city: City | null;
   open: boolean;
-  onSave: (payload: { city: string; state: string; keywords: string }) => void;
+  onSave: (payload: {
+    city: string;
+    state: string;
+    keywords: string;
+    file?: File | null;
+  }) => void;
   onClose: () => void;
 }
 
@@ -18,12 +23,16 @@ export const CityEditDialog: React.FC<CityEditDialogProps> = ({
   const [cityVal, setCityVal] = useState("");
   const [stateVal, setStateVal] = useState("");
   const [keywordsVal, setKeywordsVal] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (city) {
       setCityVal(city.city);
       setStateVal(city.state);
       setKeywordsVal(city.keywords || "");
+      setFile(null);
+      setPreviewUrl(city.locatorIconUrl || city.locatorPng || null);
     }
   }, [city]);
 
@@ -34,6 +43,7 @@ export const CityEditDialog: React.FC<CityEditDialogProps> = ({
       city: cityVal.trim(),
       state: stateVal.trim(),
       keywords: keywordsVal.trim(),
+      file,
     });
   };
 
@@ -79,6 +89,40 @@ export const CityEditDialog: React.FC<CityEditDialogProps> = ({
               placeholder="e.g. skyline, beach, tacos"
             />
           </FormField>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <Text size="sm" weight="medium">
+              Locator Icon (PNG)
+            </Text>
+            {previewUrl && (
+              <img
+                src={previewUrl}
+                alt="Locator icon preview"
+                style={{
+                  width: 64,
+                  height: 64,
+                  objectFit: "contain",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 8,
+                }}
+              />
+            )}
+            <input
+              type="file"
+              accept="image/png"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setFile(f);
+                if (f) {
+                  const reader = new FileReader();
+                  reader.onload = () => setPreviewUrl(String(reader.result));
+                  reader.readAsDataURL(f);
+                }
+              }}
+            />
+            <Text size="xs" color="muted">
+              PNG only. Recommended around 64–96px square.
+            </Text>
+          </div>
           <Stack direction="row" justify="end" spacing="md">
             <Button variant="ghost" onClick={onClose}>
               Cancel

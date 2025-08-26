@@ -58,7 +58,7 @@ function FlatMapInner({
   isSleep = false,
 }: FlatMapProps) {
   const [selectedCity, setSelectedCity] = useState<JourneyCity | null>(null);
-  const isMobile = useMediaQuery("(max-width: 1100px)");
+  const isMobile = useMediaQuery("(max-width: 767px)");
   const initialZoom = isMobile ? 3 : 4; // start more zoomed out on mobile
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -373,7 +373,9 @@ function FlatMapInner({
     pastCities.forEach((pt) => {
       const initialSize = getIconSizeForZoom(map.getZoom());
       const img = document.createElement("img");
-      img.src = allIcons[Math.floor(Math.random() * allIcons.length)];
+      const custom =
+        (pt as any).locatorIconUrl || (pt as any).locatorPng || null;
+      img.src = custom || allIcons[Math.floor(Math.random() * allIcons.length)];
       img.style.width = `${initialSize}px`;
       img.style.height = `${initialSize}px`;
       img.style.cursor = "pointer";

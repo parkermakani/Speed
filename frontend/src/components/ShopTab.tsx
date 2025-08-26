@@ -30,7 +30,7 @@ export const ShopTab: React.FC<ShopTabProps> = ({
   const tabWidth = 48;
   const tabHeight = 120;
   const [hasAlert, setHasAlert] = useState(false);
-  const isDesktop = useMediaQuery("(min-width: 1100px)");
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   const isMobile = !isDesktop;
 
   // Drag state
@@ -163,7 +163,7 @@ export const ShopTab: React.FC<ShopTabProps> = ({
     cursor: "pointer",
     transition: dragging ? "none" : "transform var(--transition-slow)",
     transform: `translateX(-${currentSlide}px)`,
-    zIndex: 1400,
+    zIndex: 2501,
     // iOS Safari gesture/tap polish
     touchAction: "none",
     WebkitUserSelect: "none",
