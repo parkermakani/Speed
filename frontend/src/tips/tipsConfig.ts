@@ -41,7 +41,7 @@ export const tipsConfig: TipStep[] = [
       offsetY: 119,
       rotationDeg: 0,
       anchor: "bottomRight",
-      scale: 1.55,
+      scale: 1.8,
     },
   },
   {
@@ -57,11 +57,11 @@ export const tipsConfig: TipStep[] = [
       scale: 1.6,
     },
     placementMobile: {
-      offsetX: 94,
-      offsetY: -45,
+      offsetX: 200,
+      offsetY: 40,
       rotationDeg: 0,
       anchor: "topLeft",
-      scale: 1.4,
+      scale: 1,
     },
   },
   {
@@ -97,8 +97,8 @@ export const tipsConfig: TipStep[] = [
       scale: 1.35,
     },
     placementMobile: {
-      offsetX: 38,
-      offsetY: -33,
+      offsetX: -130,
+      offsetY: -41,
       rotationDeg: 0,
       anchor: "center",
       scale: 1.55,
@@ -126,20 +126,21 @@ export const tipsConfig: TipStep[] = [
   {
     id: "Tip-MerchCard",
     imageUrl: "/src/assets/Tips/tip-6.png",
-    target: '[data-tip-target="merch-card"]',
+    target: '[data-tip-target="time-limit"]',
     continueMode: "tapAnywhere",
     placementDesktop: {
-      offsetX: -199,
-      offsetY: 74,
+      offsetX: -313,
+      offsetY: -119,
       rotationDeg: 0,
       anchor: "center",
       scale: 2,
     },
     placementMobile: {
-      offsetX: 45,
-      offsetY: 68,
+      offsetX: -157,
+      offsetY: -84,
       rotationDeg: 0,
       anchor: "center",
+      scale: 1.2,
     },
   },
 ];

@@ -42,6 +42,7 @@ export const Merch: React.FC = () => {
   const isDesktop = useMediaQuery("(min-width: 1100px)");
   const isMobile = !isDesktop;
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+  const tipIndex = isMobile ? 1 : 0;
 
   // Drag-to-scroll for mobile products list
   const productsRef = useRef<HTMLDivElement | null>(null);
@@ -200,7 +201,14 @@ export const Merch: React.FC = () => {
     const diff = Math.max(0, target - now);
     if (!isFinite(diff) || diff <= 0) {
       return (
-        <span style={{ color: "var(--color-text-secondary)" }}>Ended</span>
+        <span
+          style={{
+            color: "var(--color-text-secondary)",
+            fontSize: isMobile ? "0.8rem" : undefined,
+          }}
+        >
+          Ended
+        </span>
       );
     }
     const totalSec = Math.floor(diff / 1000);
@@ -208,14 +216,20 @@ export const Merch: React.FC = () => {
     const hours = Math.floor((totalSec % 86400) / 3600);
     const minutes = Math.floor((totalSec % 3600) / 60);
     const seconds = totalSec % 60;
-    const parts: string[] = [];
-    if (days > 0) parts.push(`${days}d`);
-    parts.push(`${hours}h`);
-    parts.push(`${minutes}m`);
-    parts.push(`${seconds}s`);
+    const pad2 = (n: number) => String(Math.max(0, n)).padStart(2, "0");
+    const dd = String(Math.max(0, days)).padStart(2, "0");
+    const hh = pad2(hours);
+    const mm = pad2(minutes);
+    const ss = pad2(seconds);
     return (
-      <span style={{ color: "var(--color-primary)", fontWeight: 600 }}>
-        {parts.join(" ")}
+      <span
+        style={{
+          color: "var(--color-primary)",
+          fontWeight: 600,
+          fontSize: isMobile ? "0.8rem" : undefined,
+        }}
+      >
+        {`${dd}:${hh}:${mm}:${ss}`}
       </span>
     );
   };
@@ -224,7 +238,8 @@ export const Merch: React.FC = () => {
     <div
       style={{
         padding: isMobile ? "var(--space-4)" : "var(--space-6)",
-        overflow: "hidden",
+        overflowX: "hidden",
+        overflowY: isMobile ? ("auto" as any) : ("hidden" as any),
         width: "100%",
         boxSizing: "border-box",
         height: "100%",
@@ -253,7 +268,7 @@ export const Merch: React.FC = () => {
             flexDirection: "column",
             flex: isMobile ? undefined : "1 1 60%",
             minHeight: 0,
-            overflow: "hidden",
+            overflow: isMobile ? (undefined as any) : ("hidden" as any),
           }}
         >
           {isMobile ? (
@@ -488,7 +503,8 @@ export const Merch: React.FC = () => {
         >
           {loading && <p>Loading…</p>}
           {!loading && products.length === 0 && <p>No products available.</p>}
-          {products.map((p) => {
+          {products.map((p, idx) => {
+            const isTipTarget = idx === tipIndex && products.length > tipIndex;
             const isExpired = p.autoDisableAt
               ? Date.now() >= new Date(p.autoDisableAt).getTime()
               : false;
@@ -529,9 +545,7 @@ export const Merch: React.FC = () => {
                     display: "block",
                     marginBottom: -14,
                   }}
-                  data-tip-target={
-                    products[0]?.id === p.id ? "merch-card" : undefined
-                  }
+                  data-tip-target={isTipTarget ? "merch-card" : undefined}
                 />
                 {/* Expand/collapse button */}
                 <button
@@ -607,16 +621,14 @@ export const Merch: React.FC = () => {
                         color: "var(--color-text-secondary)",
                         fontSize: isMobile ? "0.8rem" : undefined,
                       }}
-                      data-tip-target={
-                        products[0]?.id === p.id ? "time-limit" : undefined
-                      }
                     >
-                      {"$" + p.price + " USD"}
+                      {"$" + p.price}
                     </p>
                     {p.autoDisableAt && (
                       <div
                         style={{ whiteSpace: "nowrap" }}
                         aria-label="Time remaining"
+                        data-tip-target={isTipTarget ? "time-limit" : undefined}
                       >
                         <Countdown targetIso={p.autoDisableAt} />
                       </div>

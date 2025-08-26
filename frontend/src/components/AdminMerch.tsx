@@ -222,13 +222,13 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
                 />
               </FormField>
               <FormField label="Auto-disable at (local time)">
-                <Input
+                <input
                   type="datetime-local"
                   value={form.autoDisableAt}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, autoDisableAt: e.target.value }))
                   }
-                  fullWidth
+                  style={{ width: "100%" }}
                 />
               </FormField>
 
