@@ -14,7 +14,7 @@ export const Footer: React.FC = () => {
           height: "50px",
           justifyContent: "center",
           alignItems: "center",
-          gap: "1rem",
+          gap: "0.5rem",
         }}
       >
         <img
@@ -22,11 +22,11 @@ export const Footer: React.FC = () => {
           alt="Speed Does America"
           className="footer-logo"
           style={{
-            width: "84px",
+            width: "120px",
             height: "auto",
             opacity: 0.7,
             cursor: "pointer",
-            marginBottom: "-20px",
+            marginBottom: "-10px",
           }}
           onClick={() => {
             window.open("https://pplwatching.com/", "_blank");

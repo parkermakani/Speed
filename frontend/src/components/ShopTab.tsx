@@ -128,7 +128,7 @@ export const ShopTab: React.FC<ShopTabProps> = ({
   useEffect(() => {
     if (hasAlert) {
       const audio = new Audio(alertSfx);
-      audio.volume = 0.5;
+      audio.volume = 0.1;
       // Attempt to play; some browsers block without user gesture.
       audio.play().catch((err) => {
         // eslint-disable-next-line no-console
