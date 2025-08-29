@@ -38,6 +38,12 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
     tiktokUsername: "",
     twitchUsername: "",
     youtubeUsername: "",
+    socialHashtag: "SpeedDoesAmerica",
+    curatorApiBase: "",
+    curatorApiKey: "",
+    curatorFeedId: "",
+    curatorJsonUrl: "",
+    disableMerch: false,
   });
   const [submitError, setSubmitError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string>("");
@@ -311,6 +317,18 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
             <Text size="lg" weight="medium">
               Social Settings
             </Text>
+            <FormField label="Disable Merch (hide shop/cart across site)">
+              <input
+                type="checkbox"
+                checked={!!settingsForm.disableMerch}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    disableMerch: e.target.checked,
+                  }))
+                }
+              />
+            </FormField>
             <FormField label="Scrape Interval (minutes)">
               <Input
                 type="number"
@@ -377,6 +395,72 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
                     youtubeUsername: e.target.value,
                   }))
                 }
+              />
+            </FormField>
+            <FormField label="Hashtag (no #)">
+              <Input
+                value={settingsForm.socialHashtag || ""}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    socialHashtag: e.target.value,
+                  }))
+                }
+                placeholder="SpeedDoesAmerica"
+              />
+            </FormField>
+            <Text size="sm" color="secondary">
+              Curator.io (preferred if configured)
+            </Text>
+            <FormField label="Curator JSON URL (public feed)">
+              <Input
+                value={settingsForm.curatorJsonUrl || ""}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    curatorJsonUrl: e.target.value,
+                  }))
+                }
+                placeholder="https://api.curator.io/.../feed.json"
+              />
+            </FormField>
+            <Text size="xs" color="muted">
+              — or use API credentials —
+            </Text>
+            <FormField label="Curator API Base">
+              <Input
+                value={settingsForm.curatorApiBase || ""}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    curatorApiBase: e.target.value,
+                  }))
+                }
+                placeholder="https://api.curator.io"
+              />
+            </FormField>
+            <FormField label="Curator API Key">
+              <Input
+                value={settingsForm.curatorApiKey || ""}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    curatorApiKey: e.target.value,
+                  }))
+                }
+                placeholder="sk_..."
+              />
+            </FormField>
+            <FormField label="Curator Feed ID">
+              <Input
+                value={settingsForm.curatorFeedId || ""}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    curatorFeedId: e.target.value,
+                  }))
+                }
+                placeholder="abcd1234"
               />
             </FormField>
             <Button

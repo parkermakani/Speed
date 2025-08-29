@@ -2,15 +2,56 @@ import React from "react";
 import { useCart } from "../hooks/useCart";
 import { Button } from "./primitives/Button";
 import { Card } from "./primitives/Card";
+import {
+  isShopifyConfigured,
+  createShopifyCheckout,
+} from "../services/shopify";
 
 export const CartPanel: React.FC = () => {
   const { items, removeItem, setQuantity, clear } = useCart();
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
+    if (isShopifyConfigured()) {
+      try {
+        // Our cart items may or may not have Shopify variant IDs; skip those without
+        const lineItems = items
+          .map((i) => ({
+            variantId: (i as any).shopifyVariantId as string | undefined,
+            quantity: i.quantity,
+          }))
+          .filter((li) => li.variantId && li.quantity > 0) as Array<{
+          variantId: string;
+          quantity: number;
+        }>;
+
+        if (lineItems.length === 0) {
+          // Fallback to summary if nothing mappable
+          const summary = items
+            .map((i) => `${i.quantity} x ${i.name} (${i.price})`)
+            .join(", ");
+          // eslint-disable-next-line no-console
+          console.log("Checkout items (no Shopify variants found):", summary);
+          alert(
+            `Checkout items (no Shopify variants found):\n${items
+              .map((i) => `${i.quantity} x ${i.name} (${i.price})`)
+              .join("\n")}`
+          );
+          return;
+        }
+
+        const url = await createShopifyCheckout(lineItems);
+        window.open(url, "_blank", "noopener,noreferrer");
+        return;
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("Shopify checkout failed:", err);
+        // fall through to summary alert
+      }
+    }
+
     const summary = items
       .map((i) => `${i.quantity} x ${i.name} (${i.price})`)
       .join(", ");
-    // Print to console for now per requirement
     // eslint-disable-next-line no-console
     console.log("Checkout items:", summary);
     alert(

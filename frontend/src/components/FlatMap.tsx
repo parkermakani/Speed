@@ -19,6 +19,8 @@ interface FlatMapProps {
   pastCities?: { city?: string; state?: string; lat: number; lng: number }[];
   /** Whether the map is in sleep mode; changes marker to sleeping animation */
   isSleep?: boolean;
+  /** Current city metadata for popup when clicking the animated marker */
+  currentCity?: JourneyCity | null;
 }
 
 // Mapbox token
@@ -56,6 +58,7 @@ function FlatMapInner({
   path = [],
   pastCities = [],
   isSleep = false,
+  currentCity = null,
 }: FlatMapProps) {
   const [selectedCity, setSelectedCity] = useState<JourneyCity | null>(null);
   const isMobile = useMediaQuery("(max-width: 767px)");
@@ -172,8 +175,16 @@ function FlatMapInner({
       const container = document.createElement("div");
       // Allow clicks on marker
       container.style.pointerEvents = "auto";
+      container.style.cursor = "pointer";
       // Ensure this marker stays above other icons
       container.style.zIndex = "1000";
+      // Prevent map click handler from closing popup immediately
+      try {
+        container.addEventListener("click", (e) => e.stopPropagation());
+        container.addEventListener("mousedown", (e) => e.stopPropagation());
+        container.addEventListener("touchstart", (e) => e.stopPropagation());
+      } catch {}
+
       // Tip target: current city marker
       try {
         container.setAttribute("data-tip-target", "current-city");
@@ -214,7 +225,14 @@ function FlatMapInner({
           clickOffsetX={clickOffsetX}
           clickOffsetY={clickOffsetY}
           showClickBorder={false}
-          onClick={() => console.log("Marker clicked")}
+          onClick={() =>
+            setSelectedCity({
+              city: currentCity?.city ?? "Unknown",
+              state: currentCity?.state ?? (state || ""),
+              lat,
+              lng,
+            })
+          }
         />
       );
       markerRootRef.current = root;

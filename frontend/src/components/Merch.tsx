@@ -6,6 +6,7 @@ import { Stack } from "./primitives/Stack";
 import { ModelViewer } from "./ModelViewer";
 import { fetchMerch } from "../services/api";
 import type { MerchItem } from "../services/api";
+import { isShopifyConfigured, fetchShopifyMerch } from "../services/shopify";
 import { Icon } from "./primitives/Icon";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useCart } from "../hooks/useCart";
@@ -17,8 +18,24 @@ const useMerch = () => {
   useEffect(() => {
     const loadMerch = async () => {
       try {
-        const all: MerchItem[] = await fetchMerch();
-        setProducts(all.filter((m: MerchItem) => m.active));
+        if (isShopifyConfigured()) {
+          const shopifyItems = await fetchShopifyMerch();
+          // Map Shopify items to MerchItem shape with minimal fields
+          const mapped: MerchItem[] = shopifyItems.map((it) => ({
+            id: it.id,
+            name: it.name,
+            price: it.price,
+            imageUrl: it.imageUrl,
+            url: it.url,
+            active: it.active,
+            shopifyProductId: it.shopifyProductId,
+            shopifyVariantId: it.shopifyVariantId,
+          }));
+          setProducts(mapped.filter((m) => m.active));
+        } else {
+          const all: MerchItem[] = await fetchMerch();
+          setProducts(all.filter((m: MerchItem) => m.active));
+        }
       } catch (e) {
         console.error("Failed to fetch merch:", e);
       } finally {

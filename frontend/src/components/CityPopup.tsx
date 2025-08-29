@@ -77,20 +77,37 @@ export const CityPopup: React.FC<CityPopupProps> = ({
       .mapboxgl-popup.city-popup .mapboxgl-popup-tip {
         display: none;
       }
+
+      /* Scrollbar styling to match merch list */
+      .city-posts-grid {
+        scrollbar-color: var(--color-primary) transparent;
+        scrollbar-width: thin;
+      }
+      .city-posts-grid::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      .city-posts-grid::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .city-posts-grid::-webkit-scrollbar-thumb {
+        background-color: var(--color-primary);
+        border-radius: 8px;
+      }
     `;
     document.head.appendChild(styleEl);
   }
 
   const containerStyles: React.CSSProperties = {
     width: "100%",
-    maxWidth: inDrawer ? "100%" : "min(90vw, 800px)",
-    minWidth: inDrawer ? "100%" : "min(60vw, 500px)",
+    maxWidth: inDrawer ? "100%" : "min(80vw, 600px)",
+    minWidth: inDrawer ? "100%" : "min(50vw, 420px)",
     maxHeight: "75vh",
     padding: inDrawer
-      ? "var(--space-4)"
-      : "var(--space-4) var(--space-4) calc(var(--space-4) + 12px)",
+      ? "var(--space-3)"
+      : "var(--space-3) var(--space-3) calc(var(--space-3) + 10px)",
     background: "var(--color-land)",
-    border: inDrawer ? "none" : "4px solid var(--color-land-dark)",
+    border: inDrawer ? "none" : "3px solid var(--color-land-dark)",
     borderRadius: inDrawer ? 0 : "var(--radius-lg)",
     boxShadow: inDrawer ? "none" : "var(--shadow-lg)",
     color: "var(--color-text)",
@@ -105,17 +122,24 @@ export const CityPopup: React.FC<CityPopupProps> = ({
   // Force no arrow when in drawer
   const shouldShowArrow = inDrawer ? false : showArrow;
 
+  // Limit gallery to two rows tall, then scroll
+  const gridMaxHeight = inDrawer
+    ? "calc(((100vw - (var(--space-4) * 2)) / 3) * 2 + var(--space-3))"
+    : "calc((((min(80vw, 600px)) - (var(--space-3) * 2)) / 3) * 2 + var(--space-2))";
+
   return (
     <div style={containerStyles}>
       {/* Posts gallery */}
       <div
+        className="city-posts-grid"
         style={{
           flex: 1,
           overflowY: "auto",
           display: "grid",
           gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "var(--space-3)",
+          gap: "var(--space-2)",
           paddingBottom: "var(--space-1)",
+          maxHeight: gridMaxHeight,
         }}
       >
         {loading &&
@@ -137,34 +161,69 @@ export const CityPopup: React.FC<CityPopupProps> = ({
           posts.length > 0 &&
           posts.slice(0, 30).map((post, i) => {
             const imgUrl = post.mediaUrl || post.imageUrl;
+            // Use proxied URL already provided by API for posts endpoint; city posts may not be proxied
+            const src = imgUrl;
+            const href = post.url || "#";
+            const title = post.caption || "Social post";
             return (
               <Card key={i} padding="none" style={{ overflow: "hidden" }}>
-                {imgUrl ? (
-                  <img
-                    src={imgUrl}
-                    alt={post.caption || "Social post"}
-                    style={{
-                      width: "100%",
-                      aspectRatio: "1 / 1",
-                      objectFit: "cover",
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: "100%",
-                      aspectRatio: "1 / 1",
-                      background: "var(--color-border)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "var(--color-text-secondary)",
-                      fontSize: "0.8rem",
-                    }}
-                  >
-                    No&nbsp;image
-                  </div>
-                )}
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={title}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textDecoration: "none",
+                    color: "inherit",
+                  }}
+                >
+                  {src ? (
+                    <div
+                      style={{
+                        position: "relative",
+                        width: "100%",
+                        aspectRatio: "1 / 1",
+                        overflow: "hidden",
+                        borderRadius: "var(--radius-sm)",
+                      }}
+                    >
+                      <img
+                        src={src}
+                        alt={title}
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        aspectRatio: "1 / 1",
+                        background: "var(--color-border)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--color-text-secondary)",
+                        fontSize: "0.8rem",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        borderRadius: "var(--radius-sm)",
+                        padding: "0 var(--space-2)",
+                      }}
+                      title={title}
+                    >
+                      {title}
+                    </div>
+                  )}
+                </a>
               </Card>
             );
           })}

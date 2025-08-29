@@ -24,6 +24,84 @@ Project Status Board
 - [x] Cart back button returns to merch; cart icon hidden on cart view
 - [ ] Add unit test for checkout logging
 
+### Feature Flag: Disable Merch
+
+Background and Motivation
+
+- Allow admins to disable all merch capabilities site-wide via a single setting, hiding the shop tab, drawer/cart UI, and merch grid without breaking layout.
+
+Key Challenges and Analysis
+
+- Provide a durable flag stored in Firestore-backed settings and surfaced via `/api/settings`.
+- Ensure frontend gates all merch entry points (ShopTab, Drawer, Cart) while avoiding runtime errors in components that assume cart context.
+- Keep backward compatibility: default to enabled (false) and avoid undefined states.
+
+High-level Task Breakdown
+
+1. Backend: Add `disableMerch` (boolean, default false) to settings defaults and accept updates via `PUT /api/settings`. Success: `GET /api/settings` returns `disableMerch` key.
+2. Frontend types/API: Extend `Settings` and ensure fetch ensures boolean default. Success: Type compiles; `fetchSettings()` returns object with `disableMerch`.
+3. Admin UI: Add checkbox to toggle `disableMerch` in Settings card and persist with Save. Success: Toggling reflects in subsequent `GET /api/settings`.
+4. App gating: Hide `ShopTab` and `Drawer` when `disableMerch` is true. Success: No merch/cart UI is visible; app functions normally otherwise.
+
+Project Status Board (Disable Merch)
+
+- [x] 1. Backend flag in defaults and update schema
+- [x] 2. Frontend types and API integration
+- [x] 3. Admin checkbox UI
+- [x] 4. App gating in `App.tsx`
+
+Current Status / Progress Tracking
+
+- Implemented end-to-end disableMerch feature flag. No linter errors. Ready for manual verification in Admin Dashboard.
+
+Executor's Feedback or Assistance Requests
+
+- Please test toggling the "Disable Merch" checkbox in the Admin Dashboard, click Save, refresh the public site, and confirm the shop tab/cart are hidden when enabled and restored when disabled.
+
+Lessons
+
+- Favor server-provided feature flags (via `/api/settings`) over build-time env for runtime control without deployments.
+
+### Shopify Integration (Optional)
+
+Background and Motivation
+
+- Replicate Shopify Buy Button functionality (collection listing and checkout) while keeping our styling and without relying on embedded UI. Must not break when example products or missing config are present.
+
+Key Challenges and Analysis
+
+- Use Storefront API with env-driven config; fall back to existing `/api/merch` when not configured.
+- Preserve our `Card`, `Button`, and layout. Only data layer changes.
+- Checkout: create Shopify Checkout when possible; otherwise keep current summary alert.
+
+High-level Task Breakdown
+
+1. Add Shopify client util using Storefront API (env-driven). Success: `isShopifyConfigured()` toggles behavior; GraphQL queries work.
+2. Map Shopify collection products to our `MerchItem` shape (id, name, price, imageUrl, url, active).
+3. Update `Merch.tsx` hook to fetch from Shopify when configured, else from backend API.
+4. Enhance `CartPanel` checkout: if Shopify configured and items have variant IDs, create checkout and open `webUrl`; else show summary.
+5. Update `env.example` with Shopify vars; do not commit secrets.
+
+Project Status Board (Shopify)
+
+- [x] 1. Shopify client util (env-driven)
+- [x] 2. Product mapping to our type
+- [x] 3. Merch uses Shopify when configured
+- [x] 4. Checkout opens Shopify webUrl when possible
+- [x] 5. Env docs added
+
+Current Status / Progress Tracking
+
+- Implemented `frontend/src/services/shopify.ts`; integrated into `Merch.tsx` and `CartPanel.tsx`. No linter issues. Safe fallback maintained.
+
+Executor's Feedback or Assistance Requests
+
+- Provide `VITE_SHOPIFY_DOMAIN`, `VITE_SHOPIFY_STOREFRONT_TOKEN`, and either `VITE_SHOPIFY_COLLECTION_HANDLE` or `VITE_SHOPIFY_COLLECTION_ID` in `.env` to enable Shopify sourcing. Without these, app continues using backend merch API.
+
+Lessons
+
+- Prefer Storefront API over Buy Button SDK to preserve design system and avoid iframe/UI injection; gate by env to avoid breaking when configs are absent.
+
 Current Status / Progress Tracking
 
 - Implemented context, provider, UI, and header cart toggle with badge. Added `CartPanel`. Wrote unit test; running tests next.
@@ -567,6 +645,15 @@ replit.nix
 |- 🛠️ Started task 20c: Updated `backend/auth.py` to verify ID tokens via Firebase Admin and changed protected route dependency. Deprecated old /api/auth/login/logout endpoints in `backend/main.py`.
 |- 🐞 Task 22 progress: Debug run produced IG:1, TW:10 raw posts but 0 after filtering; needs filter & search refinement (see Task 22e–22f).
 
+|- ✅ Switched to hashtag-based ingestion path
+| - Added `socialHashtag` setting (default `SpeedDoesAmerica`) in backend repo defaults and API schema
+| - Implemented `search_*_hashtag` and `scrape_hashtag_posts` in `backend/social_scraper.py`
+| - Scheduler and manual scrape now use `socialHashtag` when present; otherwise fallback to profile+keywords
+| - Admin Dashboard now exposes a "Hashtag (no #)" field in Social Settings
+| - CityPopup already reads posts from Firestore; no UI change needed
+
+|- ⚠️ To run scrapes, we need a valid `APIFY_TOKEN` in backend env. No platform API keys are needed for this Apify actor pathway.
+
 |- 📝 Planned: Tip System
 | - Help button location: top-right of overlay stack (above `Header`)
 | - Auto-prompt: show tip-1 once after ~12s per session
@@ -581,6 +668,8 @@ replit.nix
 - Fill in the VITE*FIREBASE*\* variables in `.env` with values from **Project Settings → General → Your apps**.
 - Let me know when credentials are in place so I can run the project locally and confirm successful initialisation before proceeding to frontend auth (task 20b).
 - Please verify that the _current city_ document has an accurate `lastCurrentAt` ISO timestamp (e.g., within the last 48 h) so filters do not exclude valid posts. If stale, toggle city to current again to refresh the timestamp for testing.
+
+- Provide an `APIFY_TOKEN` in the backend environment so hashtag scraping can run. Without it, scrapes will return empty. Optional: confirm preferred hashtag (defaulted to `SpeedDoesAmerica`, case-insensitive).
 
 - Tip System confirmations requested:
   - Confirm the auto-prompt delay (proposed 12 seconds) and frequency (per session).

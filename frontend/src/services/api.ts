@@ -9,6 +9,7 @@ import type { City, JourneyResponse, SleepResponse, Settings } from "../types";
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
   window.location.origin;
+const API_ORIGIN = new URL(API_BASE_URL).origin;
 
 const HIDE = (import.meta.env.VITE_HIDE_CITIES ?? "false") === "true";
 
@@ -172,6 +173,9 @@ export interface MerchItem {
   shirtTexture?: string; // texture file path for model viewer
   defaultAnimation?: string;
   autoDisableAt?: string; // ISO timestamp when the item should auto-disable
+  // Optional Shopify linkage when products are sourced from Shopify
+  shopifyVariantId?: string;
+  shopifyProductId?: string;
 }
 
 export async function fetchMerch(): Promise<MerchItem[]> {
@@ -256,9 +260,11 @@ export interface SocialPost {
   imageUrl?: string; // fallback key
   caption?: string;
   username?: string;
+  avatarUrl?: string;
   likeCount?: number;
   likes?: number;
   timestamp?: string;
+  url?: string; // link to original post
 }
 
 export async function fetchCityPosts(cityId: number): Promise<SocialPost[]> {
@@ -266,6 +272,25 @@ export async function fetchCityPosts(cityId: number): Promise<SocialPost[]> {
   if (!res.ok) throw new ApiError(res.status, "Failed to fetch city posts");
   const data: SocialPost[] = await res.json();
   return data;
+}
+
+export async function fetchAllPosts(): Promise<SocialPost[]> {
+  const res = await fetch(`${API_BASE_URL}/api/posts`);
+  if (!res.ok) throw new ApiError(res.status, "Failed to fetch posts");
+  const data: SocialPost[] = await res.json();
+  // Swap media/avatar URLs to proxy endpoint to avoid CORS issues
+  return data.map((p) => ({
+    ...p,
+    mediaUrl: p.mediaUrl
+      ? `${API_ORIGIN}/api/proxy-media?url=${encodeURIComponent(p.mediaUrl)}`
+      : p.mediaUrl,
+    imageUrl: p.imageUrl
+      ? `${API_ORIGIN}/api/proxy-media?url=${encodeURIComponent(p.imageUrl)}`
+      : p.imageUrl,
+    avatarUrl: p.avatarUrl
+      ? `${API_ORIGIN}/api/proxy-media?url=${encodeURIComponent(p.avatarUrl)}`
+      : p.avatarUrl,
+  }));
 }
 
 export async function runScrape(
@@ -291,7 +316,10 @@ export async function runScrape(
 export async function fetchSettings(): Promise<Settings> {
   const res = await fetch(`${API_BASE_URL}/api/settings`);
   if (!res.ok) throw new ApiError(res.status, "Failed to fetch settings");
-  return await res.json();
+  const data = await res.json();
+  // Ensure boolean fallback for disableMerch
+  if (typeof data.disableMerch === "undefined") data.disableMerch = false;
+  return data as Settings;
 }
 
 export async function updateSettings(

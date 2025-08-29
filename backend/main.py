@@ -10,6 +10,7 @@ import os
 from dotenv import load_dotenv
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi import Response
 
 # Load environment variables from .env file
 load_dotenv()
@@ -576,22 +577,98 @@ async def modify_merch(item_id: str, payload: MerchUpdate, current_admin=Depends
 async def get_city_posts(city_id: int):
     """Return saved social posts for the specified city (public)."""
     posts = repo.list_city_posts(city_id)
-    # Sort by likeCount/likes desc then timestamp desc
-    def score(p: dict[str, any]):
-        return p.get("likeCount", p.get("likes", 0))
-
-    posts.sort(key=score, reverse=True)
+    # Sort newest to oldest using timestamp if available
+    try:
+        posts.sort(key=lambda p: (p.get("timestamp") or ""), reverse=True)
+    except Exception:
+        def score(p: dict[str, any]):
+            return p.get("likeCount", p.get("likes", 0))
+        posts.sort(key=score, reverse=True)
     return posts
+
+
+@api.get("/posts")
+async def get_all_posts():
+    """Aggregate posts from all cities and return newest→oldest."""
+    cities = repo.list_cities()
+    all_posts: list[dict[str, any]] = []
+    for c in cities:
+        all_posts.extend(repo.list_city_posts(c["id"]))
+
+    # Dedupe by platform+id if present
+    seen: set[tuple[str | None, str | None]] = set()
+    deduped: list[dict[str, any]] = []
+    for p in all_posts:
+        key = (p.get("platform"), p.get("id") or p.get("postId"))
+        if key not in seen:
+            seen.add(key)
+            deduped.append(p)
+
+    try:
+        deduped.sort(key=lambda p: (p.get("timestamp") or ""), reverse=True)
+    except Exception:
+        def score(p: dict[str, any]):
+            return p.get("likeCount", p.get("likes", 0))
+        deduped.sort(key=score, reverse=True)
+
+    return deduped
+
+
+@api.get("/proxy-media")
+async def proxy_media(url: str):
+    """Simple media proxy to bypass cross-origin restrictions for images/videos.
+
+    Note: This endpoint does not cache server-side. Clients/browsers will cache per headers below.
+    """
+    try:
+        import httpx  # local import to avoid import cycles
+        # Basic validation
+        if not (url.startswith("http://") or url.startswith("https://")):
+            raise HTTPException(status_code=400, detail="Invalid URL scheme")
+
+        # Fetch with small timeout
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            resp = await client.get(url)
+        if resp.status_code >= 400:
+            raise HTTPException(status_code=resp.status_code, detail="Upstream error")
+
+        content_type = resp.headers.get("content-type", "application/octet-stream")
+        headers = {
+            "Cache-Control": "public, max-age=43200",  # 12h
+            "Content-Type": content_type,
+        }
+        return Response(content=resp.content, headers=headers)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=502, detail="Failed to proxy media")
 
 
 @api.post("/cities/{city_id}/scrape")
 async def manual_scrape(city_id: int, current_admin=Depends(get_current_admin)):
     """Trigger social scrape for a specific city and return number of posts saved."""
-    from backend.social_scraper import scrape_city_posts
+    from backend.social_scraper import (
+        scrape_city_posts,
+        scrape_hashtag_posts,
+        scrape_curator_posts,
+    )
     city_doc = repo.get_city(city_id)
     if not city_doc:
         raise HTTPException(status_code=404, detail="City not found")
-    posts = scrape_city_posts(city_doc)
+    settings = repo.get_settings()
+    # Prefer Curator if configured
+    curator_enabled = any([
+        (settings.get("curatorJsonUrl") or "").strip(),
+        ((settings.get("curatorApiBase") or "").strip() and (settings.get("curatorApiKey") or "").strip() and (settings.get("curatorFeedId") or "").strip()),
+    ])
+    if curator_enabled:
+        posts = await scrape_curator_posts(city_doc, settings)  # type: ignore
+    else:
+        hashtag = (settings.get("socialHashtag") or "").strip()
+        if hashtag:
+            posts = scrape_hashtag_posts(city_doc, hashtag)
+        else:
+            posts = scrape_city_posts(city_doc)
     if posts:
         repo.save_city_posts(city_id, posts)
     return {"saved": len(posts)}
@@ -612,6 +689,12 @@ class SettingsUpdate(SQLModel):
     tiktokUsername: str | None = None
     twitchUsername: str | None = None
     youtubeUsername: str | None = None
+    socialHashtag: str | None = None
+    curatorApiBase: str | None = None
+    curatorApiKey: str | None = None
+    curatorFeedId: str | None = None
+    curatorJsonUrl: str | None = None
+    disableMerch: bool | None = None
 
 
 @api.put("/settings")

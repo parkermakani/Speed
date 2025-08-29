@@ -32,16 +32,28 @@ async def scrape_current_city_job():
 
     logger.info("Running social scrape for city %s (%s)", current.get("city"), datetime.utcnow())
     settings = repo.get_settings()
-    profiles = []
-    if settings.get("instagramUsername"):
-        profiles.append(settings["instagramUsername"])
-    if settings.get("twitterUsername"):
-        profiles.append(settings["twitterUsername"])
-    if settings.get("tiktokUsername"):
-        profiles.append(settings["tiktokUsername"])
-    logger.debug("Profiles to scrape: %s", profiles)
 
-    posts = social_scraper.scrape_city_posts(current, profiles=profiles)
+    # Prefer Curator.io if configured. If using API, key may be from env.
+    curator_json = (settings.get("curatorJsonUrl") or "").strip()
+    curator_api_base = (settings.get("curatorApiBase") or "").strip()
+    curator_feed_id = (settings.get("curatorFeedId") or "").strip()
+    curator_enabled = bool(curator_json or (curator_api_base and curator_feed_id))
+    if curator_enabled:
+        posts = await social_scraper.scrape_curator_posts(current, settings)  # type: ignore
+    else:
+        hashtag = settings.get("socialHashtag") or ""
+        if hashtag:
+            posts = social_scraper.scrape_hashtag_posts(current, hashtag)
+        else:
+            profiles = []
+            if settings.get("instagramUsername"):
+                profiles.append(settings["instagramUsername"])
+            if settings.get("twitterUsername"):
+                profiles.append(settings["twitterUsername"])
+            if settings.get("tiktokUsername"):
+                profiles.append(settings["tiktokUsername"])
+            logger.debug("Profiles to scrape: %s", profiles)
+            posts = social_scraper.scrape_city_posts(current, profiles=profiles)
     if posts:
         repo.save_city_posts(current["id"], posts)
         logger.info("Saved %d posts for city %s", len(posts), current.get("city"))

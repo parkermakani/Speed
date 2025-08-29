@@ -54,6 +54,12 @@ export interface Settings {
   tiktokUsername: string;
   twitchUsername: string;
   youtubeUsername: string;
+  socialHashtag?: string;
+  curatorApiBase?: string;
+  curatorApiKey?: string;
+  curatorFeedId?: string;
+  curatorJsonUrl?: string;
+  disableMerch?: boolean;
 }
 
 // Tip system types

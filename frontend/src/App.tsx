@@ -3,8 +3,13 @@ import { FlatMap } from "./components/FlatMap";
 import { Header } from "./components/Header";
 import { Footer } from "./components/Footer";
 import { Quote } from "./components/Quote";
-import type { Status, JourneyResponse } from "./types";
-import { fetchStatus, fetchJourney, fetchSleep } from "./services/api";
+import type { Status, JourneyResponse, Settings } from "./types";
+import {
+  fetchStatus,
+  fetchJourney,
+  fetchSleep,
+  fetchSettings,
+} from "./services/api";
 import type { SleepResponse } from "./types";
 import "./App.css";
 import { Drawer } from "./components/primitives/Drawer";
@@ -23,6 +28,7 @@ function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [journey, setJourney] = useState<JourneyResponse | null>(null);
   const [sleep, setSleep] = useState<SleepResponse | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [shopOpen, setShopOpen] = useState(false);
   const [shopSlidePx, setShopSlidePx] = useState<number | null>(null);
@@ -44,14 +50,17 @@ function App() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [statusRes, journeyRes, sleepRes] = await Promise.all([
-          fetchStatus(),
-          fetchJourney(),
-          fetchSleep(),
-        ]);
+        const [statusRes, journeyRes, sleepRes, settingsRes] =
+          await Promise.all([
+            fetchStatus(),
+            fetchJourney(),
+            fetchSleep(),
+            fetchSettings(),
+          ]);
         setStatus(statusRes);
         setJourney(journeyRes);
         setSleep(sleepRes);
+        setSettings(settingsRes);
       } catch (error) {
         console.error("Failed to load data:", error);
       } finally {
@@ -66,7 +75,7 @@ function App() {
     return <div className="app loading">Loading...</div>;
   }
 
-  if (!status || !journey || !sleep) {
+  if (!status || !journey || !sleep || !settings) {
     return <div className="app error">Failed to load map data</div>;
   }
 
@@ -150,6 +159,7 @@ function App() {
           path={memoPath}
           pastCities={journey.path}
           isSleep={sleep.isSleep}
+          currentCity={journey.currentCity || null}
         />
 
         {/* Removed sleep overlay per user request */}
@@ -159,92 +169,96 @@ function App() {
       <Footer />
 
       {/* Shop UI */}
-      <ShopTab
-        isOpen={shopOpen}
-        toggle={() => setShopOpen((o) => !o)}
-        setOpen={(open) => setShopOpen(open)}
-        setSlidePx={(px) => setShopSlidePx(px)}
-        setDragging={(d) => setShopDragging(d)}
-        slidePx={shopSlidePx}
-        dragging={shopDragging}
-      />
-      <Drawer
-        isOpen={shopOpen}
-        onClose={() => {
-          setShopOpen(false);
-          setShowCart(false);
-        }}
-        slideOffsetPx={shopSlidePx}
-        isDragging={shopDragging}
-        title={showCart ? "Cart" : "Merch"}
-        fancy={true}
-        showBackButton={showCart || !isDesktop}
-        onBack={() => {
-          if (showCart) {
-            setShowCart(false);
-          } else {
-            setShopOpen(false);
-          }
-        }}
-        rightAction={
-          !showCart ? (
-            <button
-              onClick={() => setShowCart((s) => !s)}
-              style={{
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                padding: 8,
-                outline: "none",
-              }}
-              aria-label="Cart"
-            >
-              <div style={{ position: "relative" }}>
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--color-land-dark)"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+      {!settings.disableMerch && (
+        <>
+          <ShopTab
+            isOpen={shopOpen}
+            toggle={() => setShopOpen((o) => !o)}
+            setOpen={(open) => setShopOpen(open)}
+            setSlidePx={(px) => setShopSlidePx(px)}
+            setDragging={(d) => setShopDragging(d)}
+            slidePx={shopSlidePx}
+            dragging={shopDragging}
+          />
+          <Drawer
+            isOpen={shopOpen}
+            onClose={() => {
+              setShopOpen(false);
+              setShowCart(false);
+            }}
+            slideOffsetPx={shopSlidePx}
+            isDragging={shopDragging}
+            title={showCart ? "Cart" : "Merch"}
+            fancy={true}
+            showBackButton={showCart || !isDesktop}
+            onBack={() => {
+              if (showCart) {
+                setShowCart(false);
+              } else {
+                setShopOpen(false);
+              }
+            }}
+            rightAction={
+              !showCart ? (
+                <button
+                  onClick={() => setShowCart((s) => !s)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 8,
+                    outline: "none",
+                  }}
+                  aria-label="Cart"
                 >
-                  <circle cx="9" cy="21" r="1"></circle>
-                  <circle cx="20" cy="21" r="1"></circle>
-                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-                </svg>
-                {cart.totalItems > 0 && (
-                  <span
-                    aria-label={`Cart items: ${cart.totalItems}`}
-                    style={{
-                      position: "absolute",
-                      top: -4,
-                      right: -4,
-                      background: "var(--color-bg)",
-                      color: "var(--color-land-dark)",
-                      border: "2px solid var(--color-land-dark)",
-                      borderRadius: 12,
-                      minWidth: 18,
-                      height: 18,
-                      padding: "0 4px",
-                      fontSize: 12,
-                      lineHeight: "14px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {cart.totalItems}
-                  </span>
-                )}
-              </div>
-            </button>
-          ) : undefined
-        }
-      >
-        {shopOpen && (showCart ? <CartPanel /> : <Merch />)}
-      </Drawer>
+                  <div style={{ position: "relative" }}>
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="var(--color-land-dark)"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="9" cy="21" r="1"></circle>
+                      <circle cx="20" cy="21" r="1"></circle>
+                      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                    </svg>
+                    {cart.totalItems > 0 && (
+                      <span
+                        aria-label={`Cart items: ${cart.totalItems}`}
+                        style={{
+                          position: "absolute",
+                          top: -4,
+                          right: -4,
+                          background: "var(--color-bg)",
+                          color: "var(--color-land-dark)",
+                          border: "2px solid var(--color-land-dark)",
+                          borderRadius: 12,
+                          minWidth: 18,
+                          height: 18,
+                          padding: "0 4px",
+                          fontSize: 12,
+                          lineHeight: "14px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {cart.totalItems}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ) : undefined
+            }
+          >
+            {shopOpen && (showCart ? <CartPanel /> : <Merch />)}
+          </Drawer>
+        </>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, List, Optional
+import os
 
 from firebase_admin import firestore  # type: ignore
 
@@ -85,24 +86,44 @@ def list_city_posts(city_id: int) -> list[dict[str, Any]]:
 
 
 DEFAULT_SETTINGS = {
-    "socialScrapeIntervalMin": 60,
+    "socialScrapeIntervalMin": 5,
     "instagramUsername": "",
     "twitterUsername": "",
     "tiktokUsername": "",
     "twitchUsername": "",
     "youtubeUsername": "",
+    "socialHashtag": "SpeedDoesAmerica",
+    # Curator.io integration (prefer when configured)
+    "curatorApiBase": "",
+    "curatorApiKey": "",
+    "curatorFeedId": "",
+    # Alternatively, provide a direct JSON URL from Curator's published feed
+    "curatorJsonUrl": "",
+    # Feature flags
+    "disableMerch": False,
 }
 
 
 def get_settings() -> dict[str, Any]:
     doc = SETTINGS_DOC.get()
     data = doc.to_dict() if doc.exists else {}
-    # merge defaults
-    merged = {**DEFAULT_SETTINGS, **(data or {})}
+    # env overrides (do not include secrets in response by default)
+    env_overrides: dict[str, Any] = {}
+    if os.getenv("CURATOR_JSON_URL"):
+        env_overrides["curatorJsonUrl"] = os.getenv("CURATOR_JSON_URL")
+    if os.getenv("CURATOR_API_BASE"):
+        env_overrides["curatorApiBase"] = os.getenv("CURATOR_API_BASE")
+    if os.getenv("CURATOR_FEED_ID"):
+        env_overrides["curatorFeedId"] = os.getenv("CURATOR_FEED_ID")
+    # Intentionally do NOT expose CURATOR_API_KEY via GET settings
+    merged = {**DEFAULT_SETTINGS, **(data or {}), **env_overrides}
     return merged
 
 
 def update_settings(data: dict[str, Any]) -> dict[str, Any]:
+    # Never persist API key via settings to avoid accidental exposure
+    if "curatorApiKey" in data:
+        data = {k: v for k, v in data.items() if k != "curatorApiKey"}
     SETTINGS_DOC.set(data, merge=True)
     return get_settings()
 

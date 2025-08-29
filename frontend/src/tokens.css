@@ -9,6 +9,19 @@
   --color-sky-stripe: #3C8DFF;
   --color-vintage-gold: #FFD700;
 
+  --color-liberty-blue-70: #0a3161b1;
+  --color-liberty-blue-50: #0a316180;
+  --color-liberty-blue-30: #0a31614d;
+  --color-liberty-blue-10: #0a31611a;
+  --color-freedom-red-70: #b31942b1;
+  --color-freedom-red-50: #b3194280;
+  --color-freedom-red-30: #b319424d;
+  --color-freedom-red-10: #b319421a;
+  --color-star-white-70: #ffffffb1;
+  --color-star-white-50: #ffffff80;
+  --color-star-white-30: #ffffff4d;
+  --color-star-white-10: #ffffff1a;
+
   --color-land: #DEC29B;
   --color-land-dark: #6d5e4a;
   
@@ -28,6 +41,7 @@
   --color-text-border: var(--color-liberty-blue-dark);
   
   --color-primary: var(--color-freedom-red);
+  --color-primary-50: var(--color-freedom-red-50);
   --color-primary-hover: rgba(179, 25, 66, 0.8);
   --color-primary-light: rgba(179, 25, 66, 0.3);
   --color-primary-dark: rgba(179, 25, 66, 0.9);
