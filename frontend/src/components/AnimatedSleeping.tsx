@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { Quote } from "./Quote";
 
 // Import sleeping frames
 import frame0 from "../assets/SpeedSleeping/SpeedSleeping_00000.png";
