@@ -259,6 +259,7 @@ export interface SocialPost {
   mediaUrl?: string;
   imageUrl?: string; // fallback key
   caption?: string;
+  text?: string; // normalized text body; prefer this in UI
   username?: string;
   avatarUrl?: string;
   likeCount?: number;
@@ -267,18 +268,39 @@ export interface SocialPost {
   url?: string; // link to original post
 }
 
+function normalizeCaptionToText(caption?: string): string | undefined {
+  if (!caption) return caption;
+  try {
+    const doc = new DOMParser().parseFromString(caption, "text/html");
+    const tiktokSection = doc.querySelector("blockquote.tiktok-embed section");
+    const target = tiktokSection || doc.body;
+    const text = target.textContent?.trim() || "";
+    return text || undefined;
+  } catch {
+    try {
+      const tmp = document.createElement("div");
+      tmp.innerHTML = caption;
+      const text = (tmp.textContent || tmp.innerText || "").trim();
+      return text || undefined;
+    } catch {
+      return caption;
+    }
+  }
+}
+
 export async function fetchCityPosts(cityId: number): Promise<SocialPost[]> {
   const res = await fetch(`${API_BASE_URL}/api/cities/${cityId}/posts`);
   if (!res.ok) throw new ApiError(res.status, "Failed to fetch city posts");
   const data: SocialPost[] = await res.json();
-  return data;
+  // Normalize `text` from curator `caption` (e.g., TikTok embeds -> section text)
+  return data.map((p) => ({ ...p, text: normalizeCaptionToText(p.caption) }));
 }
 
 export async function fetchAllPosts(): Promise<SocialPost[]> {
   const res = await fetch(`${API_BASE_URL}/api/posts`);
   if (!res.ok) throw new ApiError(res.status, "Failed to fetch posts");
   const data: SocialPost[] = await res.json();
-  // Swap media/avatar URLs to proxy endpoint to avoid CORS issues
+  // Swap media/avatar URLs to proxy endpoint to avoid CORS issues and normalize `text` from `caption`
   return data.map((p) => ({
     ...p,
     mediaUrl: p.mediaUrl
@@ -290,6 +312,7 @@ export async function fetchAllPosts(): Promise<SocialPost[]> {
     avatarUrl: p.avatarUrl
       ? `${API_ORIGIN}/api/proxy-media?url=${encodeURIComponent(p.avatarUrl)}`
       : p.avatarUrl,
+    text: normalizeCaptionToText(p.caption),
   }));
 }
 

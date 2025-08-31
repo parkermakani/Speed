@@ -847,3 +847,39 @@ Executor's Feedback or Assistance Requests
 Lessons
 
 - Prefer server-side filtering of expired items to avoid client clock skew; if not feasible, include both server and client guards.
+
+### City Locator Icons via Firestore
+
+Background and Motivation
+
+- We want past-city markers on the map to use per-city locator icons when available, falling back to bundled defaults. Admins should upload/update the icon from the dashboard, and the URL should be stored on each city document in Firestore.
+
+Key Challenges and Analysis
+
+- Ensure journey responses include `locatorIconUrl`/`locatorPng` for both `currentCity` and `path` elements.
+- Keep map fast: read optional URL directly without additional API calls.
+- Provide admin upload flow that writes to Cloud Storage and persists the public URL on the corresponding Firestore city document.
+
+High-level Task Breakdown
+
+1. Backend: Add POST `/api/cities/{id}/locator-icon` to accept PNG, upload to Storage, and persist URL under `locatorIconUrl` (with legacy alias `locatorPng`). Success: returns `{ url }`; Firestore city document has the URL fields.
+2. Frontend (Admin): Extend City Edit dialog with a PNG file input and preview; on Save, call upload endpoint after textual fields save. Success: Icon uploads, preview updates, subsequent city fetch shows URL.
+3. Frontend (Map): When rendering past markers, first use `city.locatorIconUrl || city.locatorPng`, else fallback to a random bundled icon. Success: Past markers with uploaded icons render the custom image at appropriate size; others use defaults.
+
+Project Status Board (Locator Icons)
+
+- [x] Backend upload endpoint and Firestore field persistence
+- [x] Admin UI file input + upload + preview in `CityEditDialog`
+- [x] Map past markers prefer Firestore `locatorIconUrl`/`locatorPng` before defaults
+
+Current Status / Progress Tracking
+
+- Verified backend endpoint at `/api/cities/{city_id}/locator-icon` uploads to GCS and stores `locatorIconUrl` and `locatorPng` on the city doc. Admin UI (`Journey Cities` → Edit) includes a PNG uploader and calls the upload endpoint. `FlatMap.tsx` reads `(pt as any).locatorIconUrl || (pt as any).locatorPng` for past-city markers and falls back to bundled icons.
+
+Executor's Feedback or Assistance Requests
+
+- Please test in Admin → Journey Cities: click Edit on a city, upload a small PNG locator icon, Save. Then refresh the map and confirm that city's past marker uses the uploaded icon. Share any CORS or scaling issues you observe.
+
+Lessons
+
+- Returning full city docs from `/api/journey` lets the map consume optional fields like locator URLs without additional queries; keep types permissive for forward compatibility.

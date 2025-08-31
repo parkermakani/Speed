@@ -40,8 +40,18 @@ def init_firebase() -> FirebaseApp:
         )
         cred = credentials.ApplicationDefault()
 
-    firebase_app = initialize_app(cred)
-    logging.info("Firebase Admin initialised")
+    # Attach a default Storage bucket if we can resolve one
+    try:
+        bucket_name = get_storage_bucket_name()
+    except Exception:
+        bucket_name = None
+
+    if bucket_name:
+        firebase_app = initialize_app(cred, {"storageBucket": bucket_name})
+        logging.info("Firebase Admin initialised with storage bucket: %s", bucket_name)
+    else:
+        firebase_app = initialize_app(cred)
+        logging.info("Firebase Admin initialised (no storage bucket configured)")
     return firebase_app
 
 
@@ -55,7 +65,24 @@ def get_storage_bucket_name() -> str | None:
     If FIREBASE_STORAGE_BUCKET is not set, firebase_admin.storage will use
     the default bucket bound to the Firebase app (if configured).
     """
-    return os.getenv("FIREBASE_STORAGE_BUCKET")
+    # Prefer explicit backend env var
+    name = os.getenv("FIREBASE_STORAGE_BUCKET")
+    if name:
+        return name
+    # Fallback to frontend-style env var if user set only Vite config
+    name = os.getenv("VITE_FIREBASE_STORAGE_BUCKET")
+    if name:
+        return name
+    # Last resort: infer from project id when available
+    project_id = (
+        os.getenv("GOOGLE_CLOUD_PROJECT")
+        or os.getenv("GCLOUD_PROJECT")
+        or os.getenv("FIREBASE_PROJECT_ID")
+        or os.getenv("VITE_FIREBASE_PROJECT_ID")
+    )
+    if project_id:
+        return f"{project_id}.appspot.com"
+    return None
 
 
 def get_bucket():

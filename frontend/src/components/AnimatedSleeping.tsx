@@ -7,7 +7,7 @@ import frame2 from "../assets/SpeedSleeping/SpeedSleeping_00002.png";
 import frame3 from "../assets/SpeedSleeping/SpeedSleeping_00003.png";
 import { Header } from "./Header";
 
-const FRAMES = [frame0, frame1, frame2, frame3]; 
+const FRAMES = [frame0, frame1, frame2, frame3];
 
 export interface AnimatedSleepingProps {
   /** Pixel size for width/height. Defaults to 64. */
@@ -18,6 +18,8 @@ export interface AnimatedSleepingProps {
   onClick?: () => void;
   /** Show debug border; helpful when sizing/anchoring. */
   showBorder?: boolean;
+  /** When true, renders the header overlay (off by default). */
+  showHeaderOverlay?: boolean;
 
   /** Width of the clickable overlay in pixels (defaults to `size`). */
   clickWidth?: number;
@@ -41,6 +43,7 @@ const AnimatedSleeping: React.FC<AnimatedSleepingProps> = ({
   className,
   onClick,
   showBorder = false,
+  showHeaderOverlay = false,
   clickWidth,
   clickHeight,
   clickOffsetX = 0,
@@ -64,20 +67,22 @@ const AnimatedSleeping: React.FC<AnimatedSleepingProps> = ({
       style={{ position: "relative", width: size, height: size }}
       className={className}
     >
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          zIndex: 1500,
-        }}
-      >
-        <Header/>
-      </div>
+      {showHeaderOverlay && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            zIndex: 1500,
+          }}
+        >
+          <Header />
+        </div>
+      )}
       <img
         src={FRAMES[frame]}
         width={size}

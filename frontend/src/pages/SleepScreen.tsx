@@ -9,6 +9,8 @@ import {
 import { fetchAllPosts, fetchSettings, type SocialPost } from "../services/api";
 import SleepExpandRow from "../components/SleepExpandRow";
 import { Header } from "../components/Header";
+import { Quote } from "../components/Quote";
+import AnimatedSleeping from "../components/AnimatedSleeping";
 
 const POLL_MS = 60_000; // refresh every minute
 const SCROLL_SPEED_PX_PER_SEC = 15; // quarter speed (~15 px/sec)
@@ -52,6 +54,19 @@ export default function SleepScreen() {
   const enteringExpandRef = useRef<HTMLDivElement | null>(null);
   const leavingExpandRef = useRef<HTMLDivElement | null>(null);
   const [pointerLeft, setPointerLeft] = useState<number>(40);
+  // Visual ordering: maps visual index -> underlying post index in displayPosts
+  const [order, setOrder] = useState<number[]>([]);
+  const isSwappingRef = useRef<boolean>(false);
+  const swapTimerRef = useRef<number | null>(null);
+
+  // Floating sleeper sprite state
+  const [floatVisible, setFloatVisible] = useState<boolean>(false);
+  const [floatPos, setFloatPos] = useState<{ x: number; y: number }>({
+    x: -200,
+    y: -200,
+  });
+  const [floatAngle, setFloatAngle] = useState<number>(0);
+  const floatTimerRef = useRef<number | null>(null);
 
   const displayPosts = useMemo(() => {
     if (!posts || posts.length === 0) return [] as SocialPost[];
@@ -61,6 +76,20 @@ export default function SleepScreen() {
     }
     return out;
   }, [posts]);
+
+  // Initialize or resize visual order when length changes
+  useEffect(() => {
+    const len = displayPosts.length;
+    if (len === 0) {
+      setOrder([]);
+      return;
+    }
+    setOrder((prev) => {
+      if (prev.length === len) return prev;
+      const next = new Array(len).fill(0).map((_, i) => i);
+      return next;
+    });
+  }, [displayPosts.length]);
 
   useEffect(() => {
     let mounted = true;
@@ -191,6 +220,213 @@ export default function SleepScreen() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [updatePointerAndHeights]);
+
+  // Periodically drift a sleeping sprite across the screen from a random edge
+  useEffect(() => {
+    if (floatTimerRef.current != null) {
+      window.clearTimeout(floatTimerRef.current);
+      floatTimerRef.current = null;
+    }
+    const schedule = () => {
+      const MIN_MS = 16000;
+      const MAX_MS = 30000;
+      const delay = MIN_MS + Math.random() * (MAX_MS - MIN_MS);
+      floatTimerRef.current = window.setTimeout(() => {
+        const root = scrollRef.current;
+        if (!root) return schedule();
+        const rect = root.getBoundingClientRect();
+        const size = 180; // pixel size for sprite (bigger)
+        // Random start edge: 0=left,1=right,2=top,3=bottom
+        const edge = Math.floor(Math.random() * 4);
+        let startX = -size;
+        let startY = Math.random() * (rect.height - size);
+        let endX = rect.width + size;
+        let endY = Math.random() * (rect.height - size);
+        if (edge === 1) {
+          // right -> left
+          startX = rect.width + size;
+          endX = -size;
+        } else if (edge === 2) {
+          // top -> bottom
+          startX = Math.random() * (rect.width - size);
+          endX = Math.random() * (rect.width - size);
+          startY = -size;
+          endY = rect.height + size;
+        } else if (edge === 3) {
+          // bottom -> top
+          startX = Math.random() * (rect.width - size);
+          endX = Math.random() * (rect.width - size);
+          startY = rect.height + size;
+          endY = -size;
+        }
+        // Choose a curved control point roughly near the midpoint, offset perpendicular
+        const midX = (startX + endX) / 2;
+        const midY = (startY + endY) / 2;
+        const dx = endX - startX;
+        const dy = endY - startY;
+        const len = Math.max(1, Math.hypot(dx, dy));
+        const nx = -dy / len;
+        const ny = dx / len;
+        const curvature =
+          Math.min(rect.width, rect.height) * (0.15 + Math.random() * 0.25);
+        const bend = (Math.random() < 0.5 ? -1 : 1) * curvature;
+        const ctrlX = midX + nx * bend;
+        const ctrlY = midY + ny * bend;
+        // Initial facing angle
+        const baseAngle = Math.atan2(dy, dx);
+        setFloatAngle(baseAngle);
+        setFloatPos({ x: startX, y: startY });
+        setFloatVisible(true);
+        const DUR = 20000 + Math.random() * 15000; // slower drift
+        const spinSpeed = Math.random() * 0.25 - 0.125; // rad/sec slow spin
+        const startTime = performance.now();
+        const animate = (now: number) => {
+          const t = Math.min(1, (now - startTime) / DUR);
+          const easeT = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; // easeInOutQuad
+          // Quadratic Bezier for curve
+          const omt = 1 - easeT;
+          const x =
+            omt * omt * startX + 2 * omt * easeT * ctrlX + easeT * easeT * endX;
+          const y =
+            omt * omt * startY + 2 * omt * easeT * ctrlY + easeT * easeT * endY;
+          setFloatPos({ x, y });
+          // Derivative for tangent angle
+          const dxdt = 2 * omt * (ctrlX - startX) + 2 * easeT * (endX - ctrlX);
+          const dydt = 2 * omt * (ctrlY - startY) + 2 * easeT * (endY - ctrlY);
+          const travelAngle = Math.atan2(dydt, dxdt);
+          const elapsedSec = (now - startTime) / 1000;
+          setFloatAngle(travelAngle + spinSpeed * elapsedSec);
+          if (t < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            setFloatVisible(false);
+          }
+        };
+        requestAnimationFrame(animate);
+        schedule();
+      }, delay) as unknown as number;
+    };
+    schedule();
+    return () => {
+      if (floatTimerRef.current != null) {
+        window.clearTimeout(floatTimerRef.current);
+        floatTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Helper to choose two close-by visual indices to swap (excluding the anchor)
+  const chooseNearbyPair = useCallback((): [number, number] | null => {
+    const total = displayPosts.length;
+    if (total < 4) return null;
+    const anchor = expandedAnchorIndexRef.current;
+    const vis = Array.from(visibleIndicesRef.current.values());
+    const pool = vis.length >= 4 ? vis : [...Array(total).keys()];
+    // pick first candidate not equal to anchor
+    let a = pool[Math.floor(Math.random() * pool.length)];
+    let safety = 0;
+    while (anchor != null && a === anchor && safety++ < 10) {
+      a = pool[Math.floor(Math.random() * pool.length)];
+    }
+    const col = a % NUM_COLUMNS;
+    const neighbors: number[] = [];
+    const pushIfValid = (idx: number) => {
+      if (idx >= 0 && idx < total) neighbors.push(idx);
+    };
+    // left/right (same row)
+    if (col - 1 >= 0) pushIfValid(a - 1);
+    if (col + 1 < NUM_COLUMNS) pushIfValid(a + 1);
+    // up/down
+    pushIfValid(a - NUM_COLUMNS);
+    pushIfValid(a + NUM_COLUMNS);
+    // filter out anchor and out of pool
+    const neighborPool = (neighbors.length > 0 ? neighbors : pool).filter(
+      (idx) => (anchor == null || idx !== anchor) && idx !== a
+    );
+    if (neighborPool.length === 0) return null;
+    const b = neighborPool[Math.floor(Math.random() * neighborPool.length)];
+    return [a, b];
+  }, [displayPosts.length]);
+
+  // Perform a FLIP-like visual swap of two tiles, then swap their mapped content
+  const animateAndSwap = useCallback((a: number, b: number) => {
+    const elA = tileElsRef.current.get(a) as HTMLElement | undefined;
+    const elB = tileElsRef.current.get(b) as HTMLElement | undefined;
+    if (!elA || !elB) return;
+    const rectA = elA.getBoundingClientRect();
+    const rectB = elB.getBoundingClientRect();
+    const dxA = rectB.left - rectA.left;
+    const dyA = rectB.top - rectA.top;
+    const dxB = rectA.left - rectB.left;
+    const dyB = rectA.top - rectB.top;
+    const DUR = 450;
+    const lift = (el: HTMLElement, dx: number, dy: number) => {
+      el.style.willChange = "transform";
+      el.style.transition = `transform ${DUR}ms ease`;
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      el.style.zIndex = "3";
+      el.style.boxShadow = "0 6px 20px rgba(0,0,0,0.35)";
+    };
+    const drop = (el: HTMLElement) => {
+      el.style.transition = "";
+      el.style.transform = "";
+      el.style.willChange = "";
+      el.style.zIndex = "";
+      el.style.boxShadow = "";
+    };
+    lift(elA, dxA, dyA);
+    lift(elB, dxB, dyB);
+    window.setTimeout(() => {
+      // swap mapped content for visual indices a and b
+      setOrder((prev) => {
+        const next = prev.slice();
+        const tmp = next[a];
+        next[a] = next[b];
+        next[b] = tmp;
+        return next;
+      });
+      // allow the content swap to paint, then drop
+      window.requestAnimationFrame(() => {
+        drop(elA);
+        drop(elB);
+        isSwappingRef.current = false;
+      });
+    }, DUR);
+  }, []);
+
+  // Schedule random neighbor swaps periodically, avoiding the anchor tile
+  useEffect(() => {
+    if (swapTimerRef.current != null) {
+      window.clearTimeout(swapTimerRef.current);
+      swapTimerRef.current = null;
+    }
+    const schedule = () => {
+      const MIN_MS = 5000;
+      const MAX_MS = 9000;
+      const delay = MIN_MS + Math.random() * (MAX_MS - MIN_MS);
+      swapTimerRef.current = window.setTimeout(() => {
+        if (!isSwappingRef.current) {
+          const pair = chooseNearbyPair();
+          const anchor = expandedAnchorIndexRef.current;
+          if (
+            pair &&
+            (anchor == null || (pair[0] !== anchor && pair[1] !== anchor))
+          ) {
+            isSwappingRef.current = true;
+            animateAndSwap(pair[0], pair[1]);
+          }
+        }
+        schedule();
+      }, delay) as unknown as number;
+    };
+    schedule();
+    return () => {
+      if (swapTimerRef.current != null) {
+        window.clearTimeout(swapTimerRef.current);
+        swapTimerRef.current = null;
+      }
+    };
+  }, [chooseNearbyPair, animateAndSwap]);
 
   // Track previous expanded to animate closing
   useEffect(() => {
@@ -323,16 +559,16 @@ export default function SleepScreen() {
     const css = `
       html, body, #root { height: 100%; }
       .sleep-wrapper { position: fixed; inset: 0; background: var(--color-bg); color: var(--color-text); }
-      .sleep-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-3); padding: var(--space-4); height: 100%; overflow-y: scroll; scrollbar-width: none; }
+      .sleep-grid { display: grid; grid-template-columns: repeat(5, 1fr); height: 100%; overflow-y: scroll; scrollbar-width: none; }
       .sleep-grid::-webkit-scrollbar { width: 0px; height: 0px; }
-      .sleep-tile { width: 100%; aspect-ratio: 1 / 1; position: relative; overflow: hidden; border-radius: var(--radius-md); }
+      .sleep-tile { width: 100%; aspect-ratio: 1 / 1; position: relative; overflow: hidden;}
       .sleep-tile > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
       .sleep-expand { grid-column: 1 / -1; position: relative; overflow: hidden; height: 0; opacity: 0; transition: height 400ms ease, opacity 300ms ease; }
       .sleep-expand.enter { opacity: 1; }
       .sleep-expand.leave { opacity: 0; }
       .sleep-expand__inner { position: relative; display: grid; grid-template-columns: 2fr 3fr; gap: var(--space-4); padding: var(--space-4); background: var(--color-bg-elevated); border-radius: var(--radius-md); align-items: center; }
       .sleep-expand__inner::after { content: ""; position: absolute; top: 0; left: var(--pointer-left, 40px); width: 12px; height: 12px; background: var(--color-bg-elevated); transform: translate(-50%, -50%) rotate(45deg); border-radius: 2px; }
-      .sleep-expand__media { width: 100%; aspect-ratio: 16 / 9; position: relative; overflow: hidden; border-radius: var(--radius-md); }
+      .sleep-expand__media { width: 100%; aspect-ratio: 16 / 9; position: relative; overflow: hidden; }
       .sleep-expand__media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
       .sleep-expand__content { min-width: 0; }
       .sleep-expand__title { color: var(--color-text); font-size: 14px; font-weight: 600; margin: 0 0 var(--space-2) 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -365,16 +601,22 @@ export default function SleepScreen() {
         }}
       >
         <Header />
+        <div style={{ marginTop: -16 }}>
+          <Quote quote="#SpeedDoesAmerica" quoted={false} withShadow />
+        </div>
       </div>
       <div ref={scrollRef} className="sleep-grid">
         {loading && <div>Loading…</div>}
         {!loading &&
-          displayPosts.flatMap((p, i) => {
-            const img = p.mediaUrl || p.imageUrl;
-            const href = p.url || undefined;
+          [...Array(displayPosts.length).keys()].flatMap((i) => {
+            const postIdx = order[i] ?? i;
+            const p = displayPosts[postIdx];
+            const img = p?.mediaUrl || p?.imageUrl;
+            const href = p?.url || undefined;
             const inner = (
               <div
                 className="sleep-tile"
+                data-sleep-tile-index={i}
                 title={p.caption || "Post"}
                 ref={(el) => {
                   const map = tileElsRef.current;
@@ -490,13 +732,14 @@ export default function SleepScreen() {
                   : (leavingAnchorIndex as number);
                 const expPost =
                   selectedIdx >= 0 && selectedIdx < displayPosts.length
-                    ? displayPosts[selectedIdx]
+                    ? displayPosts[order[selectedIdx] ?? selectedIdx]
                     : p;
                 const expansion = (
                   <SleepExpandRow
                     key={expansionKey}
                     post={expPost}
                     pointerLeftPx={pointerLeft}
+                    anchorIndex={selectedIdx}
                     state={expandedInRow ? "enter" : "leave"}
                   />
                 );
@@ -505,6 +748,19 @@ export default function SleepScreen() {
             }
             return [tileEl];
           })}
+        {floatVisible && (
+          <div
+            style={{
+              position: "absolute",
+              pointerEvents: "none",
+              transform: `translate(${floatPos.x}px, ${floatPos.y}px) rotate(${floatAngle}rad)`,
+              transition: "transform 50ms linear",
+              zIndex: 5,
+            }}
+          >
+            <AnimatedSleeping size={180} />
+          </div>
+        )}
       </div>
     </div>
   );

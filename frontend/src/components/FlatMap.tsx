@@ -289,7 +289,14 @@ function FlatMapInner({
         clickOffsetX={clickOffsetX}
         clickOffsetY={clickOffsetY}
         showClickBorder={false}
-        onClick={() => console.log("Marker clicked")}
+        onClick={() =>
+          setSelectedCity({
+            city: currentCity?.city ?? "Unknown",
+            state: currentCity?.state ?? (state || ""),
+            lat,
+            lng,
+          })
+        }
       />
     );
 

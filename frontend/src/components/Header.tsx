@@ -18,7 +18,7 @@ export const Header: React.FC<HeaderProps> = ({ children }) => {
   return (
     <header className="site-header">
       <h1 className="site-title">
-        <img src={src} alt="Speed Does America" className="site-logo" />
+        <img src={src} alt="Speed Does America" className="site-logo"/>
       </h1>
       {children}
     </header>

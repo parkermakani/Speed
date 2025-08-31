@@ -521,13 +521,34 @@ async def upload_city_locator_icon(
     if not city_doc:
         raise HTTPException(status_code=404, detail="City not found")
 
-    bucket = get_bucket()
+    # Obtain Storage bucket, fail with descriptive error if misconfigured
+    try:
+        bucket = get_bucket()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Firebase Storage not configured. Ensure FIREBASE_SERVICE_ACCOUNT_JSON points to a valid service account JSON "
+                "and FIREBASE_STORAGE_BUCKET is set (or a default bucket is configured in the Firebase project). "
+                f"Error: {type(e).__name__}: {e}"
+            ),
+        )
+    if not bucket:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Failed to access Storage bucket. Set FIREBASE_STORAGE_BUCKET or configure a default bucket for the Firebase app."
+            ),
+        )
     from datetime import datetime as _dt
     ts = _dt.utcnow().strftime("%Y%m%d%H%M%S")
     blob_path = f"cities/{city_id}/locator-{ts}.png"
     blob = bucket.blob(blob_path)
     data = await file.read()
-    blob.upload_from_string(data, content_type=content_type)
+    try:
+        blob.upload_from_string(data, content_type=content_type)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed to bucket '{bucket.name}': {e}")
     try:
         blob.make_public()
         public_url = blob.public_url

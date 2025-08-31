@@ -82,18 +82,40 @@ export const CityTable: React.FC<CityTableProps> = ({ onChange }) => {
       // First update textual fields (map Start to last_current_at)
       const body: any = { ...updatePayload };
       if (start) body.last_current_at = start;
-      await updateCity(editingCity.id, body, token);
+      try {
+        await updateCity(editingCity.id, body, token);
+      } catch (err: any) {
+        const msg = err?.message || "Failed to update city";
+        alert(`City update failed: ${msg}`);
+        throw err;
+      }
       // Then upload file if provided
       if (file) {
-        await uploadCityLocatorIcon(editingCity.id, file, token);
+        try {
+          const url = await uploadCityLocatorIcon(editingCity.id, file, token);
+          console.debug("[CityTable] Uploaded locator icon:", url);
+        } catch (err: any) {
+          const msg = err?.message || "Upload failed";
+          alert(
+            `Locator icon upload failed: ${msg}\n\nCheck that you are logged in and the backend has Firebase service account + Storage bucket configured.`
+          );
+          throw err;
+        }
       }
     } catch (e) {
-      /* ignore */
-    } finally {
-      setDialogOpen(false);
-      setEditingCity(null);
-      await loadCities();
+      // Keep dialog open so user can retry when an error occurs
       setLoading(false);
+      return;
+    } finally {
+      // Close on success
+      if (!loading) return;
+      try {
+        setDialogOpen(false);
+        setEditingCity(null);
+        await loadCities();
+      } finally {
+        setLoading(false);
+      }
     }
   };
 

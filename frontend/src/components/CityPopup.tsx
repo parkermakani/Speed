@@ -1,9 +1,11 @@
 import React from "react";
 import { Card } from "./primitives/Card";
 import { ChromaticText } from "./ChromaticText";
+import { Stack } from "./primitives/Stack";
+import Eagle from "../assets/Graphics/eagle.png";
 import type { JourneyCity } from "../types";
 import { fetchCities, fetchCityPosts, type SocialPost } from "../services/api";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface CityPopupProps {
   city: JourneyCity;
@@ -26,6 +28,20 @@ export const CityPopup: React.FC<CityPopupProps> = ({
 }) => {
   const [posts, setPosts] = useState<SocialPost[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Scroll shadow indicators for the posts grid
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+
+  const updateScrollShadows = () => {
+    const el = gridRef.current;
+    if (!el) return;
+    const up = el.scrollTop > 0;
+    const down = el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+    setCanScrollUp(up);
+    setCanScrollDown(down);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -55,6 +71,29 @@ export const CityPopup: React.FC<CityPopupProps> = ({
       isMounted = false;
     };
   }, [city.city, city.state]);
+
+  // Attach scroll listener and recalc on mount/resize/content changes
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+
+    const onScroll = () => updateScrollShadows();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    updateScrollShadows();
+
+    const ro = new ResizeObserver(() => updateScrollShadows());
+    ro.observe(el);
+
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      ro.disconnect();
+    };
+  }, [gridRef.current]);
+
+  useEffect(() => {
+    // Recompute shadows when content changes
+    updateScrollShadows();
+  }, [loading, posts]);
 
   // Inject Mapbox popup override styles once
   if (
@@ -99,6 +138,21 @@ export const CityPopup: React.FC<CityPopupProps> = ({
     document.head.appendChild(styleEl);
   }
 
+  // Inject eagle float keyframes once
+  if (
+    typeof document !== "undefined" &&
+    !document.getElementById("_eagle_float_styles")
+  ) {
+    const styleEl = document.createElement("style");
+    styleEl.id = "_eagle_float_styles";
+    styleEl.innerHTML = `
+      @keyframes eagle-float { from { transform: translateY(0); } to { transform: translateY(-16px); } }
+      @keyframes eagle-float-flip { from { transform: scaleX(-1) translateY(0); } to { transform: scaleX(-1) translateY(-16px); } }
+      @keyframes eagle-shadow { from { opacity: 0.6; transform: translate(-50%, 3px); } to { opacity: 0.15; transform: translate(-50%, 0px); } }
+    `;
+    document.head.appendChild(styleEl);
+  }
+
   const containerStyles: React.CSSProperties = {
     width: inDrawer ? "100%" : "min(80vw, 600px)",
     maxWidth: inDrawer ? "100%" : "min(80vw, 600px)",
@@ -132,17 +186,102 @@ export const CityPopup: React.FC<CityPopupProps> = ({
   return (
     <div style={containerStyles}>
       {/* Posts gallery */}
-      <div style={{ padding: "var(--space-2)", alignItems: "center", justifyContent: "center", }}>
+      <div
+        style={{
+          display: "flex",
+          height: "10px",
+          flexDirection: "row",
+          padding: "var(--space-4)",
+          alignSelf: "center",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "-84px",
+        }}
+      >
         {!inDrawer && (
-          <ChromaticText
-            text={city.city}
-            layers={["base"]}
-            style={{
-              margin: 0,
-              fontSize: "1.5rem",
-              zIndex: 1,
-            }}
-          />
+          <>
+            <Stack>
+              <div
+                style={{
+                  position: "relative",
+                  width: "auto",
+                  height: 64,
+                  marginBottom: 32,
+                }}
+              >
+                <img
+                  src={Eagle}
+                  style={{
+                    height: "64px",
+                    width: "auto",
+                    animation:
+                      "eagle-float-flip 1.8s ease-in-out infinite alternate",
+                    display: "block",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    bottom: -2,
+                    width: 56,
+                    height: 12,
+                    borderRadius: "50%",
+                    background:
+                      "radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.0) 70%)",
+                    pointerEvents: "none",
+                    animation:
+                      "eagle-shadow 1.8s ease-in-out infinite alternate",
+                  }}
+                />
+              </div>
+            </Stack>
+            <ChromaticText
+              text={city.city}
+              layers={["base", "outline"]}
+              style={{
+                margin: 0,
+                fontSize: "1.5rem",
+                zIndex: 1,
+              }}
+            />
+            <Stack>
+              <div
+                style={{
+                  position: "relative",
+                  width: "auto",
+                  height: 64,
+                  marginBottom: 32,
+                }}
+              >
+                <img
+                  src={Eagle}
+                  style={{
+                    height: "64px",
+                    width: "auto",
+                    animation:
+                      "eagle-float 1.8s ease-in-out infinite alternate",
+                    display: "block",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    bottom: -2,
+                    width: 56,
+                    height: 12,
+                    borderRadius: "50%",
+                    background:
+                      "radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.0) 70%)",
+                    pointerEvents: "none",
+                    animation:
+                      "eagle-shadow 1.8s ease-in-out infinite alternate",
+                  }}
+                />
+              </div>
+            </Stack>
+          </>
         )}
       </div>
       <div
@@ -156,19 +295,86 @@ export const CityPopup: React.FC<CityPopupProps> = ({
           gap: "var(--space-2)",
           paddingBottom: "var(--space-1)",
           maxHeight: gridMaxHeight,
+          position: "relative",
         }}
+        ref={gridRef}
       >
+        {/* Top scroll shadow */}
+        {!inDrawer && canScrollUp && (
+          <div
+            style={{
+              position: "sticky",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 12,
+              background:
+                "linear-gradient(to bottom, rgba(0,0,0,0.35), rgba(0,0,0,0))",
+              zIndex: 1,
+              gridColumn: "1 / -1",
+              pointerEvents: "none",
+            }}
+          />
+        )}
+        {/* Bottom scroll shadow */}
+        {!inDrawer && canScrollDown && (
+          <div
+            style={{
+              position: "sticky",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 12,
+              background:
+                "linear-gradient(to top, rgba(0, 0, 0, 0.47), rgba(0,0,0,0))",
+              zIndex: 1,
+              gridColumn: "1 / -1",
+              pointerEvents: "none",
+              marginTop: -12,
+            }}
+          />
+        )}
         {loading &&
           Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} padding="none" style={{ overflow: "hidden" }}>
+            <Card
+              key={i}
+              padding="none"
+              style={{ overflow: "hidden" }}
+              clickable
+            >
               <div
                 style={{
+                  display: "flex",
+                  flexDirection: "column",
                   width: "100%",
-                  aspectRatio: "1 / 1",
-                  background: "var(--color-border)",
-                  animation: "pulse 1.5s infinite",
                 }}
-              />
+              >
+                <div
+                  style={{
+                    width: "100%",
+                    aspectRatio: "1 / 1",
+                    background: "var(--color-border)",
+                    animation: "pulse 1.5s infinite",
+                  }}
+                />
+                <div
+                  style={{
+                    padding: "var(--space-1) var(--space-2)",
+                    background: "var(--color-land-dark)",
+                    color: "var(--color-text)",
+                    fontSize: "0.8rem",
+                    lineHeight: 1.2,
+                    height: "calc(3.6em + (var(--space-1) * 2) - 2px)", // 3 lines + padding, minus 2px to prevent bleed
+                    overflow: "hidden",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: "vertical",
+                    whiteSpace: "normal",
+                    wordBreak: "break-word",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
             </Card>
           ))}
 
@@ -180,16 +386,22 @@ export const CityPopup: React.FC<CityPopupProps> = ({
             // Use proxied URL already provided by API for posts endpoint; city posts may not be proxied
             const src = imgUrl;
             const href = post.url || "#";
-            const title = post.caption || "Social post";
+            const title = post.text || "Social post";
             return (
-              <Card key={i} padding="none" style={{ overflow: "hidden" }}>
+              <Card
+                key={i}
+                padding="none"
+                style={{ overflow: "hidden" }}
+                clickable
+              >
                 <a
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={title}
                   style={{
-                    display: "block",
+                    display: "flex",
+                    flexDirection: "column",
                     width: "100%",
                     textDecoration: "none",
                     color: "inherit",
@@ -202,7 +414,8 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                         width: "100%",
                         aspectRatio: "1 / 1",
                         overflow: "hidden",
-                        borderRadius: "var(--radius-sm)",
+                        borderTopLeftRadius: "var(--radius-sm)",
+                        borderTopRightRadius: "var(--radius-sm)",
                       }}
                     >
                       <img
@@ -231,7 +444,8 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                         overflow: "hidden",
-                        borderRadius: "var(--radius-sm)",
+                        borderTopLeftRadius: "var(--radius-sm)",
+                        borderTopRightRadius: "var(--radius-sm)",
                         padding: "0 var(--space-2)",
                       }}
                       title={title}
@@ -239,6 +453,27 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                       {title}
                     </div>
                   )}
+                  <div
+                    style={
+                      {
+                        padding: "var(--space-1) var(--space-2)",
+                        background: "var(--color-land-dark)",
+                        color: "var(--color-text)",
+                        fontSize: "0.8rem",
+                        lineHeight: 1.2,
+                        height: "calc(3.6em + (var(--space-1) * 2) - 2px)", // 3 lines + padding, minus 2px to prevent bleed
+                        overflow: "hidden",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: "vertical",
+                        whiteSpace: "normal",
+                        wordBreak: "break-word",
+                        boxSizing: "border-box",
+                      } as React.CSSProperties
+                    }
+                  >
+                    {title}
+                  </div>
                 </a>
               </Card>
             );

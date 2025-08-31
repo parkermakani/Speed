@@ -4,18 +4,43 @@ import type { SocialPost } from "../services/api";
 interface SleepExpandRowProps {
   post: SocialPost | null;
   pointerLeftPx: number;
+  anchorIndex: number;
   state: "enter" | "leave";
   transitionMs?: number;
 }
 
 function cleanCaption(raw?: string): string {
   if (!raw) return "";
-  let out = raw;
-  // Remove known embed blocks (e.g., TikTok)
+  let input = raw;
+  // Try to extract TikTok caption from <blockquote class="tiktok-embed"><section>...</section></blockquote>
+  try {
+    const tiktokMatch = input.match(
+      /<blockquote[^>]*class=["'][^"']*tiktok-embed[^"']*["'][\s\S]*?<section[^>]*>([\s\S]*?)<\/section>[\s\S]*?<\/blockquote>/i
+    );
+    if (tiktokMatch && tiktokMatch[1]) {
+      const sectionHtml = tiktokMatch[1];
+      const sectionText = sectionHtml.replace(/<[^>]+>/g, " ");
+      const entities: Record<string, string> = {
+        "&amp;": "&",
+        "&lt;": "<",
+        "&gt;": ">",
+        "&quot;": '"',
+        "&#39;": "'",
+        "&nbsp;": " ",
+      };
+      const decoded = sectionText.replace(
+        /&(amp|lt|gt|quot|#39|nbsp);/gi,
+        (m) => entities[m.toLowerCase()] || " "
+      );
+      const collapsed = decoded.replace(/\s+/g, " ").trim();
+      if (collapsed) return collapsed;
+    }
+  } catch {}
+
+  // Fallback: strip embeds and tags, decode entities
+  let out = input;
   out = out.replace(/<blockquote[\s\S]*?<\/blockquote>/gi, " ");
-  // Strip any remaining HTML tags
   out = out.replace(/<[^>]+>/g, " ");
-  // Decode a few common HTML entities
   const entities: Record<string, string> = {
     "&amp;": "&",
     "&lt;": "<",
@@ -28,7 +53,6 @@ function cleanCaption(raw?: string): string {
     /&(amp|lt|gt|quot|#39|nbsp);/gi,
     (m) => entities[m.toLowerCase()] || " "
   );
-  // Collapse whitespace
   out = out.replace(/\s+/g, " ").trim();
   return out;
 }
@@ -46,6 +70,7 @@ function isVideoUrl(url?: string): boolean {
 export default function SleepExpandRow({
   post,
   pointerLeftPx,
+  anchorIndex,
   state,
   transitionMs = 800,
 }: SleepExpandRowProps) {
@@ -89,6 +114,47 @@ export default function SleepExpandRow({
     }
   }, [state, post?.id, post?.url, post?.caption]);
 
+  // Recompute pointer position based on the actual anchor tile element
+  useLayoutEffect(() => {
+    const inner = innerRef.current;
+    if (!inner) {
+      setLocalLeft(pointerLeftPx);
+      return;
+    }
+    const grid = inner.closest(".sleep-grid") as HTMLElement | null;
+    const anchorEl = grid?.querySelector(
+      `[data-sleep-tile-index="${anchorIndex}"]`
+    ) as HTMLElement | null;
+    if (anchorEl) {
+      const innerRect = inner.getBoundingClientRect();
+      const tileRect = anchorEl.getBoundingClientRect();
+      const leftWithin = tileRect.left - innerRect.left + tileRect.width / 2;
+      setLocalLeft(leftWithin);
+    } else {
+      setLocalLeft(pointerLeftPx);
+    }
+  }, [anchorIndex, pointerLeftPx]);
+
+  // Adjust on resize to keep pointer aligned during layout changes
+  useLayoutEffect(() => {
+    const onResize = () => {
+      const inner = innerRef.current;
+      if (!inner) return;
+      const grid = inner.closest(".sleep-grid") as HTMLElement | null;
+      const anchorEl = grid?.querySelector(
+        `[data-sleep-tile-index="${anchorIndex}"]`
+      ) as HTMLElement | null;
+      if (anchorEl) {
+        const innerRect = inner.getBoundingClientRect();
+        const tileRect = anchorEl.getBoundingClientRect();
+        const leftWithin = tileRect.left - innerRect.left + tileRect.width / 2;
+        setLocalLeft(leftWithin);
+      }
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [anchorIndex]);
+
   const containerStyle: React.CSSProperties = {
     gridColumn: "1 / -1",
     overflow: "visible",
@@ -107,7 +173,6 @@ export default function SleepExpandRow({
     gap: "var(--space-4)",
     padding: "var(--space-4)",
     background: "var(--color-primary)",
-    borderRadius: "var(--radius-md)",
     alignItems: "start",
   };
 
@@ -147,7 +212,7 @@ export default function SleepExpandRow({
   };
 
   const captionStyle: React.CSSProperties = {
-    color: "var(--color-text-secondary)",
+    color: "var(--color-text)",
     fontSize: 24,
     fontWeight: "bold",
     margin: 0,
@@ -209,7 +274,7 @@ export default function SleepExpandRow({
                   objectFit: "cover",
                 }}
               />
-              <div style={titleStyle}>{post.username}</div>
+              <div style={titleStyle}>{"@" + post.username}</div>
             </div>
           )}
           {safeCaption && <p style={captionStyle}>{safeCaption}</p>}
