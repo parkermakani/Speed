@@ -313,7 +313,10 @@ export const Drawer: React.FC<DrawerProps> = ({
             display: "flex",
             flexDirection: "column",
             minHeight: 0,
-            overflow: "hidden",
+            overflowY: "auto",
+            overflowX: "hidden",
+            WebkitOverflowScrolling: "touch" as any,
+            overscrollBehavior: "contain" as any,
           }}
         >
           {children}

@@ -295,9 +295,20 @@ export async function fetchAllPosts(): Promise<SocialPost[]> {
 
 export async function runScrape(
   cityId: number,
-  token: string
+  token: string,
+  opts?: { ignoreTime?: boolean; noCap?: boolean }
 ): Promise<number> {
-  const res = await fetch(`${API_BASE_URL}/api/cities/${cityId}/scrape`, {
+  const params: string[] = [];
+  if (opts?.ignoreTime) params.push("ignoreTime=1");
+  if (opts?.noCap) params.push("noCap=1");
+  const qs = params.length ? `?${params.join("&")}` : "";
+  console.debug(
+    "[runScrape] cityId=%s ignoreTime=%s noCap=%s",
+    cityId,
+    opts?.ignoreTime,
+    opts?.noCap
+  );
+  const res = await fetch(`${API_BASE_URL}/api/cities/${cityId}/scrape${qs}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -308,7 +319,29 @@ export async function runScrape(
     throw new ApiError(res.status, err.detail || "Failed to run scrape");
   }
   const data = await res.json();
+  console.debug("[runScrape] response", data);
   return data.saved as number;
+}
+
+export async function runScrapeAll(
+  token: string,
+  opts?: { ignoreTime?: boolean }
+): Promise<number> {
+  const params: string[] = [];
+  if (opts?.ignoreTime) params.push("ignoreTime=1");
+  const qs = params.length ? `?${params.join("&")}` : "";
+  console.debug("[runScrapeAll] ignoreTime=%s", opts?.ignoreTime);
+  const res = await fetch(`${API_BASE_URL}/api/scrape-all${qs}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, err.detail || "Failed to run scrape-all");
+  }
+  const data = await res.json();
+  console.debug("[runScrapeAll] response", data);
+  return data && typeof data.saved === "number" ? data.saved : 0;
 }
 
 // ---------------- Settings ----------------
@@ -319,6 +352,8 @@ export async function fetchSettings(): Promise<Settings> {
   const data = await res.json();
   // Ensure boolean fallback for disableMerch
   if (typeof data.disableMerch === "undefined") data.disableMerch = false;
+  if (typeof data.sleepHideUserBar === "undefined")
+    data.sleepHideUserBar = false;
   return data as Settings;
 }
 

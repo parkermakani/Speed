@@ -33,35 +33,37 @@ async def scrape_current_city_job():
     logger.info("Running social scrape for city %s (%s)", current.get("city"), datetime.utcnow())
     settings = repo.get_settings()
 
-    # Prefer Curator.io if configured. If using API, key may be from env.
+    # Curator-only: prefer Curator JSON, else Curator API (key may be via env)
     curator_json = (settings.get("curatorJsonUrl") or "").strip()
     curator_api_base = (settings.get("curatorApiBase") or "").strip()
     curator_feed_id = (settings.get("curatorFeedId") or "").strip()
     curator_enabled = bool(curator_json or (curator_api_base and curator_feed_id))
-    if curator_enabled:
-        posts = await social_scraper.scrape_curator_posts(current, settings)  # type: ignore
-    else:
-        hashtag = settings.get("socialHashtag") or ""
-        if hashtag:
-            posts = social_scraper.scrape_hashtag_posts(current, hashtag)
-        else:
-            profiles = []
-            if settings.get("instagramUsername"):
-                profiles.append(settings["instagramUsername"])
-            if settings.get("twitterUsername"):
-                profiles.append(settings["twitterUsername"])
-            if settings.get("tiktokUsername"):
-                profiles.append(settings["tiktokUsername"])
-            logger.debug("Profiles to scrape: %s", profiles)
-            posts = social_scraper.scrape_city_posts(current, profiles=profiles)
+    if not curator_enabled:
+        logger.info("Curator not configured; skipping scrape job")
+        return
+    posts = await social_scraper.scrape_curator_posts(current, settings)  # type: ignore
     if posts:
         repo.save_city_posts(current["id"], posts)
+        # After saving, repartition across cities so window assignment happens centrally
+        try:
+            repo.repartition_posts_across_cities()
+        except Exception:
+            pass
         logger.info("Saved %d posts for city %s", len(posts), current.get("city"))
     else:
         logger.info("No posts captured for city %s", current.get("city"))
 
+    # Record last run status
+    global _last_run_at, _last_run_city_id, _last_run_saved_count
+    _last_run_at = datetime.utcnow().isoformat()
+    _last_run_city_id = current["id"]
+    _last_run_saved_count = len(posts or [])
+
 
 _scheduler: AsyncIOScheduler | None = None
+_last_run_at: str | None = None
+_last_run_city_id: int | None = None
+_last_run_saved_count: int | None = None
 
 
 def _reschedule():
@@ -90,6 +92,29 @@ def start_scheduler() -> None:
     _scheduler = AsyncIOScheduler()
     _scheduler.start()
     _reschedule()
+
+
+def get_status() -> dict:
+    """Return scheduler and scrape configuration status for diagnostics."""
+    settings = repo.get_settings()
+    curator_json = (settings.get("curatorJsonUrl") or "").strip()
+    curator_api_base = (settings.get("curatorApiBase") or "").strip()
+    curator_feed_id = (settings.get("curatorFeedId") or "").strip()
+    curator_enabled = bool(curator_json or (curator_api_base and curator_feed_id))
+
+    interval = _current_interval_min()
+    cities = repo.list_cities()
+    current = next((c for c in cities if c.get("isCurrent")), None)
+    return {
+        "enabled": _scheduler is not None and interval > 0,
+        "intervalMin": interval,
+        "currentCityId": current.get("id") if current else None,
+        "currentCity": current.get("city") if current else None,
+        "curatorEnabled": curator_enabled,
+        "lastRunAt": _last_run_at,
+        "lastRunCityId": _last_run_city_id,
+        "lastRunSavedCount": _last_run_saved_count,
+    }
 
 
 def reload_settings():

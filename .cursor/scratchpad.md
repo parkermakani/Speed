@@ -62,6 +62,37 @@ Lessons
 
 - Favor server-provided feature flags (via `/api/settings`) over build-time env for runtime control without deployments.
 
+#### Social Posts Deduplication (Firestore write-layer)
+
+Background and Motivation
+
+- We observed duplicate social posts appearing in `cities/{cityId}/posts`. While upstream scrapers (including Curator) attempt to dedupe, enforcing uniqueness at the write layer ensures consistency regardless of source quirks or scheduler races.
+
+Key Challenges and Analysis
+
+- Posts may arrive with different shapes: `id`, `postId`, or only canonical `url`. Some items can lack both and only have text+timestamp. We need a stable dedupe key hierarchy.
+
+High-level Task Breakdown
+
+1. Add dedupe in `backend/firestore_repo.py::save_city_posts` prior to sorting and writes. Success: For any input list with duplicates by platform+postId or canonical URL, only one is written.
+2. Keep a safe fallback key when both id and url are missing to reduce accidental dupes while avoiding data loss. Success: No crash; ambiguous items are still saved once per unique (platform, timestamp, caption-prefix).
+
+Project Status Board
+
+- [x] Add dedupe in Firestore save_city_posts (platform+postId or canonical URL)
+
+Current Status / Progress Tracking
+
+- Implemented dedupe in `save_city_posts`: builds a key as `pid:{platform}:{postId}` when available, else `url:{canonicalUrl}`, else `tscap:{platform}:{timestamp}:{captionPrefix}`. Then sorts newest→oldest and writes with existing batching. No lints.
+
+Executor's Feedback or Assistance Requests
+
+- Please run a manual scrape and verify that subsequent runs do not increase subcollection size due to duplicate items. If you notice a missed duplicate pattern, share example fields so we can extend the key builder.
+
+Lessons
+
+- Enforce invariants at the write boundary even if upstream sources attempt dedupe; this provides defense-in-depth against race conditions and heterogeneous payload shapes.
+
 ### Shopify Integration (Optional)
 
 Background and Motivation
@@ -732,6 +763,28 @@ replit.nix
 - No linter issues introduced; manual functional test pending
 
 - Fixed dev JSON parse error by reading `VITE_API_BASE_URL` in `frontend/src/services/api.ts`; falls back to `window.location.origin` for production.
+
+#### ✅ Admin control: City Start time + Social posts partitioning
+
+- Added a "Start" datetime field to the admin City Edit dialog (`frontend/src/components/CityEditDialog.tsx`) that maps to `last_current_at`.
+- Wired save flow in `CityTable` to send `last_current_at` when provided.
+- Backend now sorts posts by `timestamp` before saving to each city's `posts` subcollection (`backend/firestore_repo.py::save_city_posts`).
+- Implemented `repartition_posts_across_cities()` to reassign posts into each city's subcollection based on city start windows. Triggered automatically when `last_current_at` is updated via `PUT /api/cities/{id}`.
+- Added scheduler diagnostics endpoint `GET /api/scheduler/status` and scheduler tracking of last run info to validate scrapes on deployment.
+
+Current Status / Progress Tracking
+
+- Admin can manually set a city's Start time. On update, backend repartitions posts and ensures per-city posts are sorted by time.
+- Scheduler status endpoint reports if scraping is enabled, interval, current city, Curator/hashtag mode, token presence, and last run summary.
+
+Executor's Feedback or Assistance Requests
+
+- Please test: In Admin → Journey Cities, click edit on the current city, set "Start" to a recent time, save. Confirm `/api/cities/{id}` returns updated `lastCurrentAt` and city gallery shows expected posts.
+- Verify on production: call `/api/scheduler/status` and share the JSON to confirm scraping is active. Ensure `APIFY_TOKEN` is set (or Curator JSON/API configured) and that `socialScrapeIntervalMin` is reasonable (e.g., 60).
+
+Lessons
+
+- When assigning social posts to cities, compute city windows from `lastCurrentAt` and sort posts by `timestamp` to keep gallery order stable.
 
 ### Mobile Shop Interactions (iOS)
 

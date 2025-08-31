@@ -8,6 +8,41 @@ interface SleepExpandRowProps {
   transitionMs?: number;
 }
 
+function cleanCaption(raw?: string): string {
+  if (!raw) return "";
+  let out = raw;
+  // Remove known embed blocks (e.g., TikTok)
+  out = out.replace(/<blockquote[\s\S]*?<\/blockquote>/gi, " ");
+  // Strip any remaining HTML tags
+  out = out.replace(/<[^>]+>/g, " ");
+  // Decode a few common HTML entities
+  const entities: Record<string, string> = {
+    "&amp;": "&",
+    "&lt;": "<",
+    "&gt;": ">",
+    "&quot;": '"',
+    "&#39;": "'",
+    "&nbsp;": " ",
+  };
+  out = out.replace(
+    /&(amp|lt|gt|quot|#39|nbsp);/gi,
+    (m) => entities[m.toLowerCase()] || " "
+  );
+  // Collapse whitespace
+  out = out.replace(/\s+/g, " ").trim();
+  return out;
+}
+
+function isVideoUrl(url?: string): boolean {
+  if (!url) return false;
+  try {
+    const lower = url.split("?")[0].toLowerCase();
+    return /\.(mp4|webm|mov|m4v)$/.test(lower);
+  } catch {
+    return false;
+  }
+}
+
 export default function SleepExpandRow({
   post,
   pointerLeftPx,
@@ -102,6 +137,7 @@ export default function SleepExpandRow({
     height: "100%",
     objectFit: "cover",
   };
+  const mediaVideoStyle: React.CSSProperties = mediaImgStyle;
 
   const titleStyle: React.CSSProperties = {
     color: "var(--color-text)",
@@ -117,18 +153,41 @@ export default function SleepExpandRow({
     margin: 0,
   };
 
+  const safeCaption = cleanCaption(post?.caption);
+
   return (
     <div ref={outerRef} style={containerStyle}>
       <div ref={innerRef} style={innerStyle}>
         <div style={pointerStyle} />
         <div style={mediaWrapStyle}>
-          {post?.mediaUrl || post?.imageUrl ? (
-            <img
-              src={post.mediaUrl || post.imageUrl}
-              alt={post?.caption || "Post"}
-              style={mediaImgStyle}
-            />
-          ) : null}
+          {(() => {
+            const media = post?.mediaUrl || post?.imageUrl;
+            const poster = post?.imageUrl || post?.mediaUrl;
+            if (isVideoUrl(post?.mediaUrl)) {
+              return (
+                <video
+                  style={mediaVideoStyle}
+                  src={post?.mediaUrl}
+                  poster={poster}
+                  muted
+                  loop
+                  playsInline
+                  autoPlay
+                  preload="metadata"
+                />
+              );
+            }
+            if (media) {
+              return (
+                <img
+                  src={media}
+                  alt={post?.caption || "Post"}
+                  style={mediaImgStyle}
+                />
+              );
+            }
+            return null;
+          })()}
         </div>
         <div style={{ minWidth: 0 }}>
           {post?.avatarUrl && post?.username && (
@@ -153,7 +212,7 @@ export default function SleepExpandRow({
               <div style={titleStyle}>{post.username}</div>
             </div>
           )}
-          {post?.caption && <p style={captionStyle}>{post.caption}</p>}
+          {safeCaption && <p style={captionStyle}>{safeCaption}</p>}
         </div>
       </div>
     </div>

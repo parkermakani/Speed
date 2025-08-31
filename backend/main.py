@@ -27,6 +27,7 @@ from backend.auth import get_current_admin
 
 from backend.scheduler import start_scheduler
 from backend.scheduler import reload_settings
+from backend import scheduler as scheduler_mod
 from backend.firebase import get_bucket
 
 # -------------------- Merch Endpoints --------------------
@@ -384,6 +385,24 @@ async def health_check():
         "status": "running"
     }
 
+
+@api.get("/scheduler/status")
+async def scheduler_status():
+    """Return scheduler configuration and last run info for diagnostics."""
+    try:
+        return scheduler_mod.get_status()
+    except Exception:
+        return {"enabled": False}
+
+
+# Duplicate non-API route for convenience/debugging in browsers that rewrite /api
+@app.get("/scheduler/status")
+async def scheduler_status_root():
+    try:
+        return scheduler_mod.get_status()
+    except Exception:
+        return {"enabled": False}
+
 # -------------------- City & Journey Endpoints --------------------
 
 
@@ -402,6 +421,8 @@ async def list_cities():
             "lng": d.get("lng", 0.0),
             "order": d.get("order", 0),
             "is_current": d.get("isCurrent", False),
+            "lastCurrentAt": d.get("lastCurrentAt"),
+            "keywords": d.get("keywords"),
             "locatorIconUrl": d.get("locatorIconUrl"),
             "locatorPng": d.get("locatorPng"),
         })
@@ -442,6 +463,14 @@ async def update_city(
     payload = {k: v for k, v in payload.items() if v is not None}
 
     updated_doc = repo.update_city(city_id, payload)
+
+    # If start time changed (lastCurrentAt provided), trigger repartition of posts
+    if "last_current_at" in data:
+        try:
+            repo.repartition_posts_across_cities()
+        except Exception:
+            # Non-fatal; continue returning the updated city
+            pass
 
     return {
         "id": city_id,
@@ -577,9 +606,14 @@ async def modify_merch(item_id: str, payload: MerchUpdate, current_admin=Depends
 async def get_city_posts(city_id: int):
     """Return saved social posts for the specified city (public)."""
     posts = repo.list_city_posts(city_id)
-    # Sort newest to oldest using timestamp if available
+    # Sort newest to oldest using Firestore Timestamp if present, else string
     try:
-        posts.sort(key=lambda p: (p.get("timestamp") or ""), reverse=True)
+        posts.sort(
+            key=lambda p: (
+                p.get("timestampDt") or p.get("timestamp") or ""
+            ),
+            reverse=True,
+        )
     except Exception:
         def score(p: dict[str, any]):
             return p.get("likeCount", p.get("likes", 0))
@@ -605,7 +639,12 @@ async def get_all_posts():
             deduped.append(p)
 
     try:
-        deduped.sort(key=lambda p: (p.get("timestamp") or ""), reverse=True)
+        deduped.sort(
+            key=lambda p: (
+                p.get("timestampDt") or p.get("timestamp") or ""
+            ),
+            reverse=True,
+        )
     except Exception:
         def score(p: dict[str, any]):
             return p.get("likeCount", p.get("likes", 0))
@@ -645,33 +684,96 @@ async def proxy_media(url: str):
 
 
 @api.post("/cities/{city_id}/scrape")
-async def manual_scrape(city_id: int, current_admin=Depends(get_current_admin)):
+async def manual_scrape(
+    city_id: int,
+    current_admin=Depends(get_current_admin),
+    ignoreTime: bool | None = Query(default=None),
+    noCap: bool | None = Query(default=None),
+):
     """Trigger social scrape for a specific city and return number of posts saved."""
     from backend.social_scraper import (
-        scrape_city_posts,
-        scrape_hashtag_posts,
         scrape_curator_posts,
     )
     city_doc = repo.get_city(city_id)
     if not city_doc:
         raise HTTPException(status_code=404, detail="City not found")
     settings = repo.get_settings()
-    # Prefer Curator if configured
-    curator_enabled = any([
-        (settings.get("curatorJsonUrl") or "").strip(),
-        ((settings.get("curatorApiBase") or "").strip() and (settings.get("curatorApiKey") or "").strip() and (settings.get("curatorFeedId") or "").strip()),
-    ])
-    if curator_enabled:
-        posts = await scrape_curator_posts(city_doc, settings)  # type: ignore
-    else:
-        hashtag = (settings.get("socialHashtag") or "").strip()
-        if hashtag:
-            posts = scrape_hashtag_posts(city_doc, hashtag)
-        else:
-            posts = scrape_city_posts(city_doc)
+    # Curator-only: JSON feed preferred; API fallback (API key may be in env)
+    curator_enabled = bool(
+        (settings.get("curatorJsonUrl") or "").strip()
+        or (
+            (settings.get("curatorApiBase") or "").strip()
+            and (settings.get("curatorFeedId") or "").strip()
+        )
+    )
+    if not curator_enabled:
+        return {"saved": 0}
+    # For manual fetch, allow a one-off ignore time via query flag later if desired
+    import logging as _logging
+    _logging.getLogger(__name__).info("Manual scrape start: city_id=%s ignoreTime=%s noCap=%s", city_id, ignoreTime, noCap)
+    posts = await scrape_curator_posts(city_doc, settings, ignore_time=bool(ignoreTime), no_cap=bool(noCap))  # type: ignore
     if posts:
-        repo.save_city_posts(city_id, posts)
-    return {"saved": len(posts)}
+        # Respect Fetch All by disabling cap for both save and repartition
+        cap_value = None if noCap else 100
+        _logging.getLogger(__name__).info("Manual scrape fetched=%s; saving with cap=%s", len(posts), cap_value)
+        repo.save_city_posts(city_id, posts, cap=cap_value)
+        try:
+            _logging.getLogger(__name__).info("Manual scrape repartition with cap=%s", cap_value)
+            repo.repartition_posts_across_cities(cap=cap_value)
+        except Exception:
+            pass
+    # Provide basic diagnostics to help troubleshoot caps/source and persisted count
+    source = (
+        "api_paged" if (bool(noCap) and (settings.get("curatorApiBase") and settings.get("curatorFeedId"))) else
+        ("json" if settings.get("curatorJsonUrl") else "api_single")
+    )
+    try:
+        persisted = len(repo.list_city_posts(city_id))
+    except Exception:
+        persisted = None
+    return {"saved": len(posts), "cap": cap_value, "source": source, "noCap": bool(noCap), "persisted": persisted}
+
+
+@api.post("/scrape-all")
+async def scrape_all_posts(
+    current_admin=Depends(get_current_admin),
+    ignoreTime: bool | None = Query(default=None),
+):
+    """Fetch all Curator posts (paged) and repartition across all cities.
+
+    This ignores city_id and always disables caps when saving/repartitioning.
+    """
+    import logging as _logging
+    from backend.social_scraper import scrape_curator_posts
+    settings = repo.get_settings()
+    cities = repo.list_cities()
+    if not cities:
+        return {"saved": 0, "reason": "no cities"}
+    # Use first city doc for scrape_curator_posts shape needs; it ignores time and no_cap=True
+    city_doc = cities[0]
+    _logging.getLogger(__name__).info("Scrape-all start: cities=%s ignoreTime=%s", len(cities), ignoreTime)
+    posts = await scrape_curator_posts(city_doc, settings, ignore_time=bool(ignoreTime), no_cap=True)  # type: ignore
+    if posts:
+        # Save into current city to get them into Firestore, then repartition without cap
+        current = next((c for c in cities if c.get("isCurrent")), cities[0])
+        repo.save_city_posts(current["id"], posts, cap=None)
+        try:
+            repo.repartition_posts_across_cities(cap=None)
+        except Exception:
+            pass
+    _logging.getLogger(__name__).info("Scrape-all done: fetched=%s", len(posts or []))
+    try:
+        persisted_counts = {str(c["id"]): len(repo.list_city_posts(c["id"])) for c in cities}
+    except Exception:
+        persisted_counts = {}
+    return {
+        "saved": len(posts or []),
+        "cap": None,
+        "source": "api_paged",
+        "noCap": True,
+        "cities": [c.get("city") for c in cities],
+        "persisted": persisted_counts,
+    }
 
 
 # -------------------- Settings endpoints --------------------
@@ -695,6 +797,7 @@ class SettingsUpdate(SQLModel):
     curatorFeedId: str | None = None
     curatorJsonUrl: str | None = None
     disableMerch: bool | None = None
+    sleepHideUserBar: bool | None = None
 
 
 @api.put("/settings")

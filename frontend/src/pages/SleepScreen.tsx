@@ -6,8 +6,9 @@ import {
   useLayoutEffect,
   useCallback,
 } from "react";
-import { fetchAllPosts, type SocialPost } from "../services/api";
+import { fetchAllPosts, fetchSettings, type SocialPost } from "../services/api";
 import SleepExpandRow from "../components/SleepExpandRow";
+import { Header } from "../components/Header";
 
 const POLL_MS = 60_000; // refresh every minute
 const SCROLL_SPEED_PX_PER_SEC = 15; // quarter speed (~15 px/sec)
@@ -18,6 +19,16 @@ export default function SleepScreen() {
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const scrollTimerRef = useRef<number | null>(null);
+  const [settingsHideUserBar, setSettingsHideUserBar] =
+    useState<boolean>(false);
+  const urlHideUserBar =
+    typeof window !== "undefined" &&
+    (() => {
+      const params = new URLSearchParams(window.location.search);
+      const v = (params.get("hideUserBar") || "").toLowerCase();
+      return v === "1" || v === "true" || v === "yes";
+    })();
+  const hideUserBar = urlHideUserBar || settingsHideUserBar;
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const expandedIndexRef = useRef<number | null>(null);
   const [expandedAnchorIndex, setExpandedAnchorIndex] = useState<number | null>(
@@ -55,8 +66,14 @@ export default function SleepScreen() {
     let mounted = true;
     const load = async () => {
       try {
-        const data = await fetchAllPosts();
-        if (mounted) setPosts(data);
+        const [data, settings] = await Promise.all([
+          fetchAllPosts(),
+          fetchSettings(),
+        ]);
+        if (mounted) {
+          setPosts(data);
+          setSettingsHideUserBar(!!settings.sleepHideUserBar);
+        }
       } catch {}
       if (mounted) setLoading(false);
     };
@@ -334,6 +351,21 @@ export default function SleepScreen() {
 
   return (
     <div className="sleep-wrapper">
+      {/* Overlay header to match home screen */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          zIndex: 1500,
+        }}
+      >
+        <Header />
+      </div>
       <div ref={scrollRef} className="sleep-grid">
         {loading && <div>Loading…</div>}
         {!loading &&
@@ -354,7 +386,7 @@ export default function SleepScreen() {
                 }}
               >
                 {/* Header with avatar and username (guarded render) */}
-                {p.avatarUrl && p.username && (
+                {!hideUserBar && p.avatarUrl && p.username && (
                   <div
                     style={{
                       position: "absolute",

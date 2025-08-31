@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-"""Utilities to fetch recent Instagram and TikTok posts via Apify.
+"""Curator.io ingestion utilities.
 
-This module provides helper functions that are *pure* network calls – no FastAPI
-routes here. They can be imported by a scheduler/background task. Logic:
-
-1. Determine the timestamp when the current city was activated (``lastCurrentAt``).
-2. For each configured profile handle (``SOCIAL_PROFILES`` env, comma-separated),
-   run Apify Instagram & TikTok actor searches for mentions newer than that time.
-3. Combine, deduplicate, and score the results (basic likeCount/created order for now).
-4. Caller (e.g. scheduler) is responsible for persisting results to Firestore.
+This module provides helper functions used by the background scheduler and
+manual scrape endpoint to fetch items from Curator.io (either a public JSON
+feed URL or the Curator API) and normalise them into our SocialPost-like shape.
 """
 
 import os
@@ -33,52 +28,14 @@ def _contains_keywords(post: dict[str, Any], terms: list[str]) -> bool:
     return any(term.lower() in blob for term in terms if term)
 
 
-try:
-    from apify_client import ApifyClient  # type: ignore
-except ImportError:  # Libraries may not be installed yet during CI
-    ApifyClient = None  # type: ignore
-
 logger = logging.getLogger(__name__)
-
-APIFY_TOKEN = os.getenv("APIFY_TOKEN")
-if not APIFY_TOKEN:
-    logger.warning("APIFY_TOKEN not set – social scraping disabled")
-    client = None
-else:
-    if ApifyClient is None:
-        logger.warning("apify-client library missing; install 'apify-client' to enable social scraping")
-        client = None
-    else:
-        try:
-            client = ApifyClient(APIFY_TOKEN)
-            logger.info("Apify client initialised (token length %s)", len(APIFY_TOKEN))
-        except Exception as exc:
-            logger.error("Failed to initialise Apify client: %s", exc)
-            client = None
-
-INSTAGRAM_ACTOR = os.getenv("APIFY_INSTAGRAM_ACTOR", "apify/instagram-scraper")
-TIKTOK_ACTOR = os.getenv("APIFY_TIKTOK_ACTOR", "clockworks/tiktok-scraper")
-TWITTER_ACTOR = os.getenv("APIFY_TWITTER_ACTOR", "apidojo/tweet-scraper")
+logger = logging.getLogger(__name__)
 
 
 # ------------------ Core helpers ------------------
 
-def _run_actor(actor_id: str, run_input: dict[str, Any]) -> List[dict[str, Any]]:
-    """Invoke an Apify actor and return its dataset items list."""
-    if not client:
-        logger.debug("Apify client not initialised; returning empty results")
-        return []
-
-    try:
-        logger.debug("Calling Apify actor %s with payload: %s", actor_id, run_input)
-        run = client.actor(actor_id).call(run_input=run_input)
-        dataset_id = run["defaultDatasetId"]
-        items: List[dict[str, Any]] = list(client.dataset(dataset_id).iterate_items())
-        logger.debug("Fetched %s items from actor %s", len(items), actor_id)
-        return items
-    except Exception as exc:
-        logger.error("Apify actor %s failed: %s", actor_id, exc)
-        return []
+def _run_actor(*args, **kwargs):
+    return []
 
 
 def _filter_since(items: List[dict[str, Any]], dt: datetime, time_key: str) -> List[dict[str, Any]]:
@@ -110,6 +67,60 @@ def _filter_since(items: List[dict[str, Any]], dt: datetime, time_key: str) -> L
         except ValueError:
             continue
     return res
+
+
+def _to_naive_utc(value: Any) -> datetime | None:
+    """Coerce a Firestore timestamp/ISO string into naive UTC datetime.
+
+    - If already a datetime: convert to UTC and strip tzinfo.
+    - If string: parse ISO (accepts trailing Z) then convert as above.
+    - Else: return None.
+    """
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except Exception:
+            return None
+    else:
+        return None
+
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def _to_iso_utc(value: Any) -> str | None:
+    """Return ISO-8601 UTC string for various timestamp representations.
+
+    Supports:
+    - ISO-like strings (with or without 'Z')
+    - Unix epoch seconds or milliseconds (int/float)
+    """
+    dt: datetime | None = None
+    if isinstance(value, (int, float)):
+        # Detect ms vs s
+        secs = float(value)
+        if secs > 1e12:
+            secs = secs / 1000.0
+        try:
+            dt = datetime.utcfromtimestamp(secs)
+        except Exception:
+            dt = None
+    elif isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except Exception:
+            dt = None
+    elif isinstance(value, datetime):
+        dt = value
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        from datetime import timezone as _tz
+        dt = dt.astimezone(_tz.utc).replace(tzinfo=None)
+    return dt.isoformat() + "Z"
 
 
 # ------------------ Platform functions ------------------
@@ -160,7 +171,7 @@ def search_instagram(term: str, since: datetime) -> List[dict[str, Any]]:
             "isUserTaggedFeedURL": True,
         }
 
-    raw = _run_actor(INSTAGRAM_ACTOR, input_payload)
+    raw = _run_actor("instagram", input_payload)
     return _filter_since(raw, since, "timestamp")
 
 
@@ -206,7 +217,7 @@ def search_tiktok(term: str, since: datetime) -> List[dict[str, Any]]:
         "proxyCountryCode": "None",
     }
 
-    raw = _run_actor(TIKTOK_ACTOR, input_payload)
+    raw = _run_actor("tiktok", input_payload)
     return _filter_since(raw, since, "createTimeISO")
 
 
@@ -235,7 +246,7 @@ def search_twitter(term: str, since: datetime) -> List[dict[str, Any]]:
         "start": since.strftime("%Y-%m-%d"),
     }
 
-    raw = _run_actor(TWITTER_ACTOR, input_payload)
+    raw = _run_actor("twitter", input_payload)
 
     # The actor may emit either `created_at` (snake) or `createdAt` (camel)
     # depending on its version. Choose whichever exists in the first item.
@@ -274,7 +285,7 @@ def search_instagram_hashtag(hashtag: str, since: datetime) -> List[dict[str, An
         "searchLimit": 1,
         "isTagResult": True,
     }
-    raw = _run_actor(INSTAGRAM_ACTOR, input_payload)
+    raw = _run_actor("instagram", input_payload)
     return _filter_since(raw, since, "timestamp")
 
 
@@ -300,7 +311,7 @@ def search_tiktok_hashtag(hashtag: str, since: datetime) -> List[dict[str, Any]]
         "shouldDownloadSubtitles": False,
         "proxyCountryCode": "None",
     }
-    raw = _run_actor(TIKTOK_ACTOR, input_payload)
+    raw = _run_actor("tiktok", input_payload)
     return _filter_since(raw, since, "createTimeISO")
 
 
@@ -316,7 +327,7 @@ def search_twitter_hashtag(hashtag: str, since: datetime) -> List[dict[str, Any]
         "maxItems": 100,
         "start": since.strftime("%Y-%m-%d"),
     }
-    raw = _run_actor(TWITTER_ACTOR, input_payload)
+    raw = _run_actor("twitter", input_payload)
     time_key = "created_at"
     if raw and "createdAt" in raw[0]:
         time_key = "createdAt"
@@ -338,15 +349,14 @@ def scrape_city_posts(city: dict[str, Any], profiles: List[str] | None = None) -
         logger.info("No social profiles configured; skipping scrape")
         return []
 
-    last_ts_str = city.get("lastCurrentAt") or city.get("last_current_at")
-    if not last_ts_str:
+    last_ts_val = city.get("lastCurrentAt") or city.get("last_current_at")
+    if not last_ts_val:
         logger.debug("City %s has no lastCurrentAt; nothing to scrape", city.get("city"))
         return []
 
-    try:
-        since_dt = datetime.fromisoformat(last_ts_str.replace("Z", "+00:00"))
-    except ValueError:
-        logger.warning("Invalid lastCurrentAt format for city %s: %s", city.get("city"), last_ts_str)
+    since_dt = _to_naive_utc(last_ts_val)
+    if since_dt is None:
+        logger.warning("Invalid lastCurrentAt format for city %s: %s", city.get("city"), last_ts_val)
         return []
 
     keywords = [city.get("city", ""), city.get("state", "")]  # e.g., ["Chicago", "Illinois"]
@@ -404,14 +414,13 @@ def scrape_hashtag_posts(city: dict[str, Any], hashtag: str) -> List[dict[str, A
         logger.info("No hashtag provided; skipping scrape")
         return []
 
-    last_ts_str = city.get("lastCurrentAt") or city.get("last_current_at")
-    if not last_ts_str:
+    last_ts_val = city.get("lastCurrentAt") or city.get("last_current_at")
+    if not last_ts_val:
         logger.debug("City %s has no lastCurrentAt; nothing to scrape", city.get("city"))
         return []
-    try:
-        since_dt = datetime.fromisoformat(last_ts_str.replace("Z", "+00:00"))
-    except ValueError:
-        logger.warning("Invalid lastCurrentAt format for city %s: %s", city.get("city"), last_ts_str)
+    since_dt = _to_naive_utc(last_ts_val)
+    if since_dt is None:
+        logger.warning("Invalid lastCurrentAt format for city %s: %s", city.get("city"), last_ts_val)
         return []
 
     results: List[dict[str, Any]] = []
@@ -472,6 +481,84 @@ async def fetch_curator_items(api_base: str, api_key: str, feed_id: str) -> List
             return []
 
 
+async def fetch_curator_items_paged(api_base: str, api_key: str, feed_id: str, *, max_pages: int = 200, limit: int = 100) -> List[dict[str, Any]]:
+    """Fetch multiple pages of Curator items.
+
+    Tries Authorization header first; falls back to api_key query param.
+    Stops when a page returns < limit items or max_pages reached.
+    """
+    base_url = api_base.rstrip("/") + f"/v1/feeds/{feed_id}/posts"
+    all_items: List[dict[str, Any]] = []
+
+    # First attempt with Authorization header
+    try:
+        async with httpx.AsyncClient(timeout=20, headers={"Authorization": f"Bearer {api_key}"}) as client:
+            # Strategy: cursor-based using pagination.after per Curator docs
+            after: str | None = None
+            seen_ids: set[str] = set()
+            for page in range(1, max_pages + 1):
+                params = {"limit": limit}
+                if after:
+                    params["after"] = after
+                resp = await client.get(base_url, params=params)
+                if resp.status_code in (401, 403):
+                    raise httpx.HTTPStatusError("Unauthorized", request=resp.request, response=resp)
+                resp.raise_for_status()
+                data = resp.json()
+                items = data.get("posts") or data.get("data") or []
+                if not isinstance(items, list):
+                    break
+                logger.info("Curator API cursor page %s: items=%s after=%s", page, len(items), after)
+                new_added = 0
+                for it in items:
+                    it_id = str(it.get("id") or it.get("postId") or it.get("post_id") or "")
+                    if it_id and it_id not in seen_ids:
+                        seen_ids.add(it_id)
+                        all_items.append(it)
+                        new_added += 1
+                # read next cursor
+                pag = data.get("pagination") or {}
+                next_after = pag.get("after") if isinstance(pag, dict) else None
+                after = next_after if next_after else None
+                if not after or len(items) < limit or new_added == 0:
+                    break
+    except Exception:
+        # Fallback: query param api_key
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                # Cursor strategy using api_key in query params
+                after: str | None = None
+                seen_ids: set[str] = set()
+                for page in range(1, max_pages + 1):
+                    params = {"api_key": api_key, "limit": limit}
+                    if after:
+                        params["after"] = after
+                    resp = await client.get(base_url, params=params)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    items = data.get("posts") or data.get("data") or []
+                    if not isinstance(items, list):
+                        break
+                    logger.info("Curator API (qp) cursor page %s: items=%s after=%s", page, len(items), after)
+                    new_added = 0
+                    for it in items:
+                        it_id = str(it.get("id") or it.get("postId") or it.get("post_id") or "")
+                        if it_id and it_id not in seen_ids:
+                            seen_ids.add(it_id)
+                            all_items.append(it)
+                            new_added += 1
+                    pag = data.get("pagination") or {}
+                    next_after = pag.get("after") if isinstance(pag, dict) else None
+                    after = next_after if next_after else None
+                    if not after or len(items) < limit or new_added == 0:
+                        break
+        except Exception:
+            return []
+
+    logger.info("Curator API paged total items=%s", len(all_items))
+    return all_items
+
+
 async def fetch_curator_json(json_url: str) -> List[dict[str, Any]]:
     try:
         async with httpx.AsyncClient(timeout=15) as client:
@@ -524,6 +611,25 @@ def _normalise_curator_item(item: dict[str, Any]) -> dict[str, Any]:
         or item.get("profile_image_url")
         or item.get("profileImageUrl")
     )
+    # Timestamp: try multiple possible fields and normalise to ISO UTC
+    ts_raw = (
+        item.get("created_at")
+        or item.get("createdAt")
+        or item.get("timestamp")
+        or item.get("post_date")
+        or item.get("posted_at")
+        or item.get("pubDate")
+        or item.get("publishedAt")
+        or item.get("date")
+        or item.get("time")
+        or item.get("created_time")
+        or item.get("source_created_at")
+        or item.get("sourceCreatedAt")
+        or item.get("created")
+        or item.get("posted")
+    )
+    ts_iso = _to_iso_utc(ts_raw)
+
     return {
         "platform": item.get("network") or item.get("source"),
         "id": item.get("id") or item.get("postId") or item.get("post_id"),
@@ -531,13 +637,13 @@ def _normalise_curator_item(item: dict[str, Any]) -> dict[str, Any]:
         "caption": item.get("text") or item.get("caption") or item.get("content"),
         "mediaUrl": item.get("image") or item.get("thumbnail"),
         "likeCount": item.get("likes") or item.get("likeCount") or 0,
-        "timestamp": item.get("created_at") or item.get("createdAt") or item.get("timestamp"),
+        "timestamp": ts_iso,
         "url": post_url,
         "avatarUrl": avatar_url,
     }
 
 
-async def scrape_curator_posts(city: dict[str, Any], settings: dict[str, Any]) -> List[dict[str, Any]]:
+async def scrape_curator_posts(city: dict[str, Any], settings: dict[str, Any], *, ignore_time: bool = False, no_cap: bool = False) -> List[dict[str, Any]]:
     json_url = (settings.get("curatorJsonUrl") or "").strip()
     api_base = (settings.get("curatorApiBase") or "").strip()
     # prefer env var for secrets; settings field ignored for exposure safety
@@ -545,27 +651,23 @@ async def scrape_curator_posts(city: dict[str, Any], settings: dict[str, Any]) -
     feed_id = (settings.get("curatorFeedId") or "").strip()
 
     items: List[dict[str, Any]] = []
-    if json_url:
+    # If Fetch All (no_cap) is requested and API creds are available, prefer API paging
+    if no_cap and api_base and api_key and feed_id:
+        logger.info("Curator scrape: using api_paged (ignore_time=%s, no_cap=%s)", ignore_time, no_cap)
+        items = await fetch_curator_items_paged(api_base, api_key, feed_id)
+    elif json_url:
+        logger.info("Curator scrape: using json feed (ignore_time=%s, no_cap=%s)", ignore_time, no_cap)
         items = await fetch_curator_json(json_url)
     elif api_base and api_key and feed_id:
+        logger.info("Curator scrape: using api_single page (ignore_time=%s, no_cap=%s)", ignore_time, no_cap)
         items = await fetch_curator_items(api_base, api_key, feed_id)
     else:
         return []
 
-    # Optional time filter using city's lastCurrentAt if present
-    last_ts_str = city.get("lastCurrentAt") or city.get("last_current_at")
-    since_dt = None
-    if last_ts_str:
-        try:
-            since_dt = datetime.fromisoformat(last_ts_str.replace("Z", "+00:00"))
-        except ValueError:
-            since_dt = None
-
     normalised = [_normalise_curator_item(it) for it in items]
-    # Allow override to ignore time filter (manual backfill)
-    ignore_time = (os.getenv("CURATOR_IGNORE_TIME") or "").strip() in ("1", "true", "yes")
-    if since_dt and not ignore_time:
-        normalised = _filter_since(normalised, since_dt, "timestamp")
+    # Intentionally do NOT filter by time here; we fetch all and assign later
+    # Debug: report counts
+    logger.info("Curator scrape: fetched items=%s before dedupe", len(normalised))
 
     # Dedup by platform+id
     seen = set()
@@ -580,4 +682,5 @@ async def scrape_curator_posts(city: dict[str, Any], settings: dict[str, Any]) -
         return item.get("likeCount", 0) or item.get("likes", 0)
 
     deduped.sort(key=score, reverse=True)
-    return deduped[:100]
+    logger.info("Curator scrape: deduped=%s, returning %s", len(deduped), ("all" if no_cap else "100"))
+    return deduped if no_cap else deduped[:100]

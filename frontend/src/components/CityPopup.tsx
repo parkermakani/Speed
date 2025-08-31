@@ -1,5 +1,6 @@
 import React from "react";
 import { Card } from "./primitives/Card";
+import { ChromaticText } from "./ChromaticText";
 import type { JourneyCity } from "../types";
 import { fetchCities, fetchCityPosts, type SocialPost } from "../services/api";
 import { useEffect, useState } from "react";
@@ -99,10 +100,11 @@ export const CityPopup: React.FC<CityPopupProps> = ({
   }
 
   const containerStyles: React.CSSProperties = {
-    width: "100%",
+    width: inDrawer ? "100%" : "min(80vw, 600px)",
     maxWidth: inDrawer ? "100%" : "min(80vw, 600px)",
     minWidth: inDrawer ? "100%" : "min(50vw, 420px)",
-    maxHeight: "75vh",
+    height: undefined,
+    maxHeight: inDrawer ? undefined : "75vh",
     padding: inDrawer
       ? "var(--space-3)"
       : "var(--space-3) var(--space-3) calc(var(--space-3) + 10px)",
@@ -123,18 +125,32 @@ export const CityPopup: React.FC<CityPopupProps> = ({
   const shouldShowArrow = inDrawer ? false : showArrow;
 
   // Limit gallery to two rows tall, then scroll
-  const gridMaxHeight = inDrawer
-    ? "calc(((100vw - (var(--space-4) * 2)) / 3) * 2 + var(--space-3))"
+  const gridMaxHeight: string | undefined = inDrawer
+    ? undefined
     : "calc((((min(80vw, 600px)) - (var(--space-3) * 2)) / 3) * 2 + var(--space-2))";
 
   return (
     <div style={containerStyles}>
       {/* Posts gallery */}
+      <div style={{ padding: "var(--space-2)", alignItems: "center", justifyContent: "center", }}>
+        {!inDrawer && (
+          <ChromaticText
+            text={city.city}
+            layers={["base"]}
+            style={{
+              margin: 0,
+              fontSize: "1.5rem",
+              zIndex: 1,
+            }}
+          />
+        )}
+      </div>
       <div
         className="city-posts-grid"
         style={{
-          flex: 1,
-          overflowY: "auto",
+          flex: inDrawer ? undefined : 1,
+          minHeight: 0,
+          overflowY: inDrawer ? "visible" : "auto",
           display: "grid",
           gridTemplateColumns: "repeat(3, 1fr)",
           gap: "var(--space-2)",

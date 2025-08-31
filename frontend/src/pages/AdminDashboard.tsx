@@ -3,7 +3,7 @@ import { Stack, Text, Button, FormField, Card } from "../components/primitives";
 import { useAuth } from "../hooks/useAuth";
 import { fetchStatus, updateStatus, ApiError } from "../services/api";
 import { fetchSleep, toggleSleep } from "../services/api";
-import { fetchCities, runScrape } from "../services/api";
+import { fetchCities, runScrape, runScrapeAll } from "../services/api";
 import { CityTable } from "../components/CityTable";
 import { AdminMerch } from "../components/AdminMerch";
 import type { Status, StatusUpdate } from "../types";
@@ -30,6 +30,8 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [scrapeMsg, setScrapeMsg] = useState<string>("");
+  const [ignoreTime, setIgnoreTime] = useState<boolean>(false);
+  const [noCap, setNoCap] = useState<boolean>(false);
   const [_settings, setSettings] = useState<Settings | null>(null);
   const [settingsForm, setSettingsForm] = useState<Settings>({
     socialScrapeIntervalMin: 60,
@@ -44,6 +46,7 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
     curatorFeedId: "",
     curatorJsonUrl: "",
     disableMerch: false,
+    sleepHideUserBar: false,
   });
   const [submitError, setSubmitError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string>("");
@@ -97,7 +100,14 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
         setScrapeMsg("No current city set.");
         return;
       }
-      const saved = await runScrape(current.id, token);
+      console.debug("[AdminDashboard] Manual scrape start", {
+        cityId: current.id,
+        ignoreTime,
+        noCap,
+      });
+      const saved = noCap
+        ? await runScrapeAll(token, { ignoreTime })
+        : await runScrape(current.id, token, { ignoreTime, noCap });
       setScrapeMsg(`Fetched ${saved} posts.`);
     } catch (e) {
       setScrapeMsg("Scrape failed");
@@ -295,6 +305,32 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
           >
             Fetch Posts Now
           </Button>
+          <Stack direction="row" spacing="xs" align="center">
+            <input
+              id="ignore-time"
+              type="checkbox"
+              checked={ignoreTime}
+              onChange={(e) => setIgnoreTime(e.target.checked)}
+            />
+            <label htmlFor="ignore-time">Backfill (ignore time)</label>
+          </Stack>
+          <Stack direction="row" spacing="xs" align="center">
+            <input
+              id="no-cap"
+              type="checkbox"
+              checked={noCap}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  const ok = window.confirm(
+                    "Are you sure? This may fetch a large number of posts."
+                  );
+                  if (!ok) return;
+                }
+                setNoCap(e.target.checked);
+              }}
+            />
+            <label htmlFor="no-cap">Fetch All (no cap)</label>
+          </Stack>
           {scrapeMsg && (
             <Text size="xs" color="secondary">
               {scrapeMsg}
@@ -325,6 +361,18 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
                   setSettingsForm((p) => ({
                     ...p,
                     disableMerch: e.target.checked,
+                  }))
+                }
+              />
+            </FormField>
+            <FormField label="Sleep Screen: Hide username bar on post cards">
+              <input
+                type="checkbox"
+                checked={!!settingsForm.sleepHideUserBar}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    sleepHideUserBar: e.target.checked,
                   }))
                 }
               />

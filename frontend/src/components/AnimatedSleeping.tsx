@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { Quote } from "./Quote";
 
 // Import sleeping frames
 import frame0 from "../assets/SpeedSleeping/SpeedSleeping_00000.png";
 import frame1 from "../assets/SpeedSleeping/SpeedSleeping_00001.png";
 import frame2 from "../assets/SpeedSleeping/SpeedSleeping_00002.png";
 import frame3 from "../assets/SpeedSleeping/SpeedSleeping_00003.png";
+import { Header } from "./Header";
 
 const FRAMES = [frame0, frame1, frame2, frame3]; 
 
@@ -63,6 +65,20 @@ const AnimatedSleeping: React.FC<AnimatedSleepingProps> = ({
       style={{ position: "relative", width: size, height: size }}
       className={className}
     >
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          zIndex: 1500,
+        }}
+      >
+        <Header/>
+      </div>
       <img
         src={FRAMES[frame]}
         width={size}

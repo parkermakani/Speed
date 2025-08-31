@@ -60,6 +60,7 @@ export interface Settings {
   curatorFeedId?: string;
   curatorJsonUrl?: string;
   disableMerch?: boolean;
+  sleepHideUserBar?: boolean;
 }
 
 // Tip system types

@@ -72,14 +72,17 @@ export const CityTable: React.FC<CityTableProps> = ({ onChange }) => {
     city: string;
     state: string;
     keywords: string;
+    start?: string | null;
     file?: File | null;
   }) => {
     if (!token || !editingCity) return;
     setLoading(true);
     try {
-      const { file, ...updatePayload } = payload;
-      // First update textual fields
-      await updateCity(editingCity.id, updatePayload, token);
+      const { file, start, ...updatePayload } = payload;
+      // First update textual fields (map Start to last_current_at)
+      const body: any = { ...updatePayload };
+      if (start) body.last_current_at = start;
+      await updateCity(editingCity.id, body, token);
       // Then upload file if provided
       if (file) {
         await uploadCityLocatorIcon(editingCity.id, file, token);
