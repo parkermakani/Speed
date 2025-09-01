@@ -176,13 +176,28 @@ function FlatMapInner({
       // Allow clicks on marker
       container.style.pointerEvents = "auto";
       container.style.cursor = "pointer";
+      // Hint browsers to allow gestures like pinch-zoom to pass through
+      // without delay while still enabling taps on the marker
+      // Safari/iOS will ignore unsupported values gracefully
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore - CSSStyleDeclaration doesn't include all possible values
+      container.style.touchAction = "manipulation";
       // Ensure this marker stays above other icons
       container.style.zIndex = "1000";
       // Prevent map click handler from closing popup immediately
       try {
         container.addEventListener("click", (e) => e.stopPropagation());
         container.addEventListener("mousedown", (e) => e.stopPropagation());
-        container.addEventListener("touchstart", (e) => e.stopPropagation());
+        // Allow multi-touch (pinch-zoom) to reach the map; only stop single taps
+        container.addEventListener(
+          "touchstart",
+          (e) => {
+            const te = e as TouchEvent;
+            if (te.touches && te.touches.length > 1) return; // let pinch-zoom through
+            e.stopPropagation();
+          },
+          { passive: true }
+        );
       } catch {}
 
       // Tip target: current city marker

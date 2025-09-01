@@ -392,7 +392,10 @@ export const CityPopup: React.FC<CityPopupProps> = ({
               <Card
                 key={i}
                 padding="none"
-                style={{ overflow: "hidden", borderRadius: inDrawer ? 0 : undefined }}
+                style={{
+                  overflow: "hidden",
+                  borderRadius: inDrawer ? 0 : undefined,
+                }}
                 clickable
               >
                 <a
