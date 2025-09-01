@@ -160,7 +160,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
     height: undefined,
     maxHeight: inDrawer ? undefined : "75vh",
     padding: inDrawer
-      ? "var(--space-3)"
+      ? 0
       : "var(--space-3) var(--space-3) calc(var(--space-3) + 10px)",
     background: "var(--color-land)",
     border: inDrawer ? "none" : "3px solid var(--color-land-dark)",
@@ -189,9 +189,9 @@ export const CityPopup: React.FC<CityPopupProps> = ({
       <div
         style={{
           display: "flex",
-          height: "10px",
+          height: inDrawer ? 0 : "10px",
           flexDirection: "row",
-          padding: "var(--space-4)",
+          padding: inDrawer ? 0 : "var(--space-4)",
           alignSelf: "center",
           alignItems: "center",
           justifyContent: "center",
@@ -292,8 +292,9 @@ export const CityPopup: React.FC<CityPopupProps> = ({
           overflowY: inDrawer ? "visible" : "auto",
           display: "grid",
           gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "var(--space-2)",
-          paddingBottom: "var(--space-1)",
+          backgroundColor: "var(--color-land)",
+          gap: 0,
+          paddingBottom: 0,
           maxHeight: gridMaxHeight,
           position: "relative",
         }}
@@ -391,7 +392,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
               <Card
                 key={i}
                 padding="none"
-                style={{ overflow: "hidden" }}
+                style={{ overflow: "hidden", borderRadius: inDrawer ? 0 : undefined }}
                 clickable
               >
                 <a
@@ -414,8 +415,8 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                         width: "100%",
                         aspectRatio: "1 / 1",
                         overflow: "hidden",
-                        borderTopLeftRadius: "var(--radius-sm)",
-                        borderTopRightRadius: "var(--radius-sm)",
+                        borderTopLeftRadius: inDrawer ? 0 : "var(--radius-sm)",
+                        borderTopRightRadius: inDrawer ? 0 : "var(--radius-sm)",
                       }}
                     >
                       <img
@@ -444,8 +445,8 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                         overflow: "hidden",
-                        borderTopLeftRadius: "var(--radius-sm)",
-                        borderTopRightRadius: "var(--radius-sm)",
+                        borderTopLeftRadius: inDrawer ? 0 : "var(--radius-sm)",
+                        borderTopRightRadius: inDrawer ? 0 : "var(--radius-sm)",
                         padding: "0 var(--space-2)",
                       }}
                       title={title}
