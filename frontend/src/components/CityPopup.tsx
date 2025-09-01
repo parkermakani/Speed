@@ -162,7 +162,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
     padding: inDrawer
       ? 0
       : "var(--space-3) var(--space-3) calc(var(--space-3) + 10px)",
-    background: "var(--color-land)",
+    background: "var(--color-border)",
     border: inDrawer ? "none" : "3px solid var(--color-land-dark)",
     borderRadius: inDrawer ? 0 : "var(--radius-lg)",
     boxShadow: inDrawer ? "none" : "var(--shadow-lg)",
@@ -181,7 +181,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
   // Limit gallery to two rows tall, then scroll
   const gridMaxHeight: string | undefined = inDrawer
     ? undefined
-    : "calc((((min(80vw, 600px)) - (var(--space-3) * 2)) / 3) * 2 + var(--space-2))";
+    : "calc((((min(80vw, 600px)) - (var(--space-3) * 2)) / 3) * (8 / 3) + var(--space-2))";
 
   return (
     <div style={containerStyles}>
@@ -292,8 +292,8 @@ export const CityPopup: React.FC<CityPopupProps> = ({
           overflowY: inDrawer ? "visible" : "auto",
           display: "grid",
           gridTemplateColumns: "repeat(3, 1fr)",
-          backgroundColor: "var(--color-land)",
-          gap: 0,
+          backgroundColor: "var(--color-border)",
+          gap: 1,
           paddingBottom: 0,
           maxHeight: gridMaxHeight,
           position: "relative",
@@ -340,7 +340,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
             <Card
               key={i}
               padding="none"
-              style={{ overflow: "hidden" }}
+              style={{ overflow: "hidden", background: "var(--color-land)" }}
               clickable
             >
               <div
@@ -353,26 +353,10 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                 <div
                   style={{
                     width: "100%",
-                    aspectRatio: "1 / 1",
+                    aspectRatio: "3 / 4",
                     background: "var(--color-border)",
                     animation: "pulse 1.5s infinite",
-                  }}
-                />
-                <div
-                  style={{
-                    padding: "var(--space-1) var(--space-2)",
-                    background: "var(--color-land-dark)",
-                    color: "var(--color-text)",
-                    fontSize: "0.8rem",
-                    lineHeight: 1.2,
-                    height: "calc(3.6em + (var(--space-1) * 2) - 2px)", // 3 lines + padding, minus 2px to prevent bleed
-                    overflow: "hidden",
-                    display: "-webkit-box",
-                    WebkitLineClamp: 3,
-                    WebkitBoxOrient: "vertical",
-                    whiteSpace: "normal",
-                    wordBreak: "break-word",
-                    boxSizing: "border-box",
+                    borderRadius: 0,
                   }}
                 />
               </div>
@@ -394,7 +378,8 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                 padding="none"
                 style={{
                   overflow: "hidden",
-                  borderRadius: inDrawer ? 0 : undefined,
+                  background: "var(--color-land)",
+                  borderRadius: 0,
                 }}
                 clickable
               >
@@ -416,10 +401,9 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                       style={{
                         position: "relative",
                         width: "100%",
-                        aspectRatio: "1 / 1",
+                        aspectRatio: "3 / 4",
                         overflow: "hidden",
-                        borderTopLeftRadius: inDrawer ? 0 : "var(--radius-sm)",
-                        borderTopRightRadius: inDrawer ? 0 : "var(--radius-sm)",
+                        borderRadius: 0,
                       }}
                     >
                       <img
@@ -438,7 +422,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                     <div
                       style={{
                         width: "100%",
-                        aspectRatio: "1 / 1",
+                        aspectRatio: "3 / 4",
                         background: "var(--color-border)",
                         display: "flex",
                         alignItems: "center",
@@ -448,36 +432,12 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                         overflow: "hidden",
-                        borderTopLeftRadius: inDrawer ? 0 : "var(--radius-sm)",
-                        borderTopRightRadius: inDrawer ? 0 : "var(--radius-sm)",
+                        borderRadius: inDrawer ? 0 : "var(--radius-sm)",
                         padding: "0 var(--space-2)",
                       }}
                       title={title}
-                    >
-                      {title}
-                    </div>
+                    ></div>
                   )}
-                  <div
-                    style={
-                      {
-                        padding: "var(--space-1) var(--space-2)",
-                        background: "var(--color-land-dark)",
-                        color: "var(--color-text)",
-                        fontSize: "0.8rem",
-                        lineHeight: 1.2,
-                        height: "calc(3.6em + (var(--space-1) * 2) - 2px)", // 3 lines + padding, minus 2px to prevent bleed
-                        overflow: "hidden",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 3,
-                        WebkitBoxOrient: "vertical",
-                        whiteSpace: "normal",
-                        wordBreak: "break-word",
-                        boxSizing: "border-box",
-                      } as React.CSSProperties
-                    }
-                  >
-                    {title}
-                  </div>
                 </a>
               </Card>
             );
