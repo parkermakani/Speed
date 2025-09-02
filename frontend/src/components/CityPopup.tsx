@@ -292,7 +292,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
           overflowY: inDrawer ? "visible" : "auto",
           display: "grid",
           gridTemplateColumns: "repeat(3, 1fr)",
-          backgroundColor: "var(--color-border)",
+          backgroundColor: inDrawer ? "var(--color-border)" : "var(--color-land)",
           gap: 1,
           paddingBottom: 0,
           maxHeight: gridMaxHeight,
