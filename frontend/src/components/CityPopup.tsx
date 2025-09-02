@@ -162,7 +162,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
     padding: inDrawer
       ? 0
       : "var(--space-3) var(--space-3) calc(var(--space-3) + 10px)",
-    background: "var(--color-border)",
+    background: inDrawer ? "var(--color-border)" : "var(--color-land)",
     border: inDrawer ? "none" : "3px solid var(--color-land-dark)",
     borderRadius: inDrawer ? 0 : "var(--radius-lg)",
     boxShadow: inDrawer ? "none" : "var(--shadow-lg)",
