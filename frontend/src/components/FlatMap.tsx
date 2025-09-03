@@ -182,8 +182,8 @@ function FlatMapInner({
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore - CSSStyleDeclaration doesn't include all possible values
       container.style.touchAction = "manipulation";
-      // Ensure this marker stays above other icons
-      container.style.zIndex = "1000";
+      // Ensure this marker does not sit above past city icons
+      container.style.zIndex = "90";
       // Prevent map click handler from closing popup immediately
       try {
         container.addEventListener("click", (e) => e.stopPropagation());

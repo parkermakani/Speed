@@ -733,9 +733,9 @@ async def manual_scrape(
     import logging as _logging
     _logging.getLogger(__name__).info("Manual scrape start: city_id=%s ignoreTime=%s noCap=%s", city_id, ignoreTime, noCap)
     posts = await scrape_curator_posts(city_doc, settings, ignore_time=bool(ignoreTime), no_cap=bool(noCap))  # type: ignore
+    # Initialize cap regardless of fetch result to avoid UnboundLocalError
+    cap_value = None if noCap else 100
     if posts:
-        # Respect Fetch All by disabling cap for both save and repartition
-        cap_value = None if noCap else 100
         _logging.getLogger(__name__).info("Manual scrape fetched=%s; saving with cap=%s", len(posts), cap_value)
         repo.save_city_posts(city_id, posts, cap=cap_value)
         try:
@@ -752,7 +752,8 @@ async def manual_scrape(
         persisted = len(repo.list_city_posts(city_id))
     except Exception:
         persisted = None
-    return {"saved": len(posts), "cap": cap_value, "source": source, "noCap": bool(noCap), "persisted": persisted}
+    saved_count = len(posts or [])
+    return {"saved": saved_count, "cap": cap_value, "source": source, "noCap": bool(noCap), "persisted": persisted}
 
 
 @api.post("/scrape-all")
