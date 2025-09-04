@@ -1,5 +1,7 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, useEffect, useMemo } from "react";
+import type React from "react";
 import type { SocialPost } from "../services/api";
+import AnimatedMotorcycle from "./AnimatedMotorcycle";
 
 interface SleepExpandRowProps {
   post: SocialPost | null;
@@ -67,6 +69,12 @@ function isVideoUrl(url?: string): boolean {
   }
 }
 
+function isTwitterPost(url?: string, platform?: string): boolean {
+  const p = (platform || "").toLowerCase();
+  const u = url || "";
+  return p === "twitter" || u.includes("twitter.com") || u.includes("x.com");
+}
+
 export default function SleepExpandRow({
   post,
   pointerLeftPx,
@@ -77,6 +85,34 @@ export default function SleepExpandRow({
   const outerRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLDivElement | null>(null);
   const [localLeft, setLocalLeft] = useState<number>(pointerLeftPx);
+  const rightColRef = useRef<HTMLDivElement | null>(null);
+  const whitePanelRef = useRef<HTMLDivElement | null>(null);
+  const [showMotor, setShowMotor] = useState<boolean>(false);
+  const [motorHeight, setMotorHeight] = useState<number>(0);
+  const motorConfig = useMemo(() => {
+    // Defaults
+    let variant: "bounce" | "l2r_exit" | "r2l_exit" = "bounce";
+    let durationMs = 5000;
+    let delayMs = 0;
+    let iteration = "infinite" as string;
+    if (motorHeight > 0) {
+      delayMs = Math.floor(Math.random() * 6000);
+      durationMs = 4000 + Math.floor(Math.random() * 5000);
+      const r = Math.random();
+      if (r < 0.45) {
+        variant = "bounce";
+        iteration = "infinite";
+      } else if (r < 0.725) {
+        variant = "l2r_exit";
+        iteration = "1";
+      } else {
+        variant = "r2l_exit";
+        iteration = "1";
+      }
+    }
+    return { variant, durationMs, delayMs, iteration };
+  }, [motorHeight]);
+  const [panDown] = useState<boolean>(Math.random() < 0.5);
 
   useLayoutEffect(() => {
     const outer = outerRef.current;
@@ -173,7 +209,7 @@ export default function SleepExpandRow({
     gap: "var(--space-4)",
     padding: "var(--space-4)",
     background: "var(--color-primary)",
-    alignItems: "start",
+    alignItems: "stretch",
   };
 
   const pointerStyle: React.CSSProperties = {
@@ -205,20 +241,135 @@ export default function SleepExpandRow({
   const mediaVideoStyle: React.CSSProperties = mediaImgStyle;
 
   const titleStyle: React.CSSProperties = {
-    color: "var(--color-text)",
+    color: "var(--color-text-inverse)",
     fontSize: 18,
     fontWeight: 600,
     margin: 0,
   };
 
   const captionStyle: React.CSSProperties = {
-    color: "var(--color-text)",
+    color: "var(--color-text-inverse)",
     fontSize: 24,
     fontWeight: "bold",
     margin: 0,
   };
 
   const safeCaption = cleanCaption(post?.caption);
+
+  const renderHashtagText = (text: string) => {
+    const parts: React.ReactNode[] = [];
+    const regex = /(#[A-Za-z0-9_]+)/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      const tag = match[1];
+      parts.push(
+        <span
+          key={`${match.index}-${tag}`}
+          style={{ color: "var(--color-liberty-blue)" }}
+        >
+          {tag}
+        </span>
+      );
+      lastIndex = match.index + tag.length;
+    }
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    return <>{parts}</>;
+  };
+
+  const bikeRunnerStyle: React.CSSProperties & {
+    [key: string]: string | number | undefined;
+  } = {
+    position: "absolute",
+    top: 0,
+    left:
+      motorConfig.variant === "bounce"
+        ? "var(--bike-margin)"
+        : motorConfig.variant === "l2r_exit"
+        ? "calc(-1 * var(--bike-size))"
+        : "calc(100% + var(--bike-margin))",
+    width: motorHeight,
+    height: motorHeight,
+    willChange: "left, transform",
+    animationName:
+      motorConfig.variant === "bounce"
+        ? "sleep-motor-run-x-margin"
+        : motorConfig.variant === "l2r_exit"
+        ? "sleep-motor-left-to-right-exit"
+        : "sleep-motor-right-to-left-exit",
+    animationDuration: `${motorConfig.durationMs}ms`,
+    animationTimingFunction: "ease-in-out",
+    animationDelay: `${motorConfig.delayMs}ms`,
+    animationIterationCount: motorConfig.iteration,
+    animationFillMode: motorConfig.variant === "bounce" ? "none" : "forwards",
+    transform: motorConfig.variant === "r2l_exit" ? "scaleX(-1)" : "scaleX(1)",
+    "--bike-size": `${motorHeight}px`,
+    "--bike-margin": "10px",
+  };
+
+  // Inject keyframes for motorcycle run once (with margins to avoid clipping)
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const id = "_sleep_expand_motor_styles_v5";
+    if (!document.getElementById(id)) {
+      const styleEl = document.createElement("style");
+      styleEl.id = id;
+      styleEl.innerHTML = `
+        @keyframes sleep-motor-run-x-margin {
+          0% { left: var(--bike-margin); transform: scaleX(1); }
+          49.999% { left: calc(100% - var(--bike-size) - var(--bike-margin)); transform: scaleX(1); }
+          50% { left: calc(100% - var(--bike-size) - var(--bike-margin)); transform: scaleX(-1); }
+          100% { left: var(--bike-margin); transform: scaleX(-1); }
+        }
+        @keyframes sleep-motor-left-to-right-exit {
+          0% { left: calc(-1 * var(--bike-size)); transform: scaleX(1); }
+          100% { left: calc(100% + var(--bike-margin)); transform: scaleX(1); }
+        }
+        @keyframes sleep-motor-right-to-left-exit {
+          0% { left: calc(100% + var(--bike-margin)); transform: scaleX(-1); }
+          100% { left: calc(-1 * var(--bike-size)); transform: scaleX(-1); }
+        }
+      `;
+      document.head.appendChild(styleEl);
+    }
+  }, []);
+
+  // Inject keyframes for slow vertical image pan
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const id = "_sleep_expand_pan_styles";
+    if (!document.getElementById(id)) {
+      const styleEl = document.createElement("style");
+      styleEl.id = id;
+      styleEl.innerHTML = `
+        @keyframes sleep-pan-down { from { object-position: 50% 0%; } to { object-position: 50% 100%; } }
+        @keyframes sleep-pan-up { from { object-position: 50% 100%; } to { object-position: 50% 0%; } }
+      `;
+      document.head.appendChild(styleEl);
+    }
+  }, []);
+
+  // Determine if there is enough leftover vertical space to show the motor row
+  useLayoutEffect(() => {
+    const measure = () => {
+      const rightCol = rightColRef.current;
+      const white = whitePanelRef.current;
+      if (!rightCol || !white) return setShowMotor(false);
+      const available = Math.max(0, rightCol.clientHeight - white.scrollHeight);
+      setMotorHeight(available);
+      setShowMotor(available >= 48); // show when enough space
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [safeCaption, post?.avatarUrl, post?.username]);
+
+  // No-op effect now; config handled by useMemo
 
   return (
     <div ref={outerRef} style={containerStyle}>
@@ -247,37 +398,117 @@ export default function SleepExpandRow({
                 <img
                   src={media}
                   alt={post?.caption || "Post"}
-                  style={mediaImgStyle}
+                  style={{
+                    ...mediaImgStyle,
+                    objectPosition: panDown ? "50% 0%" : "50% 100%",
+                    animation: `${
+                      panDown ? "sleep-pan-down" : "sleep-pan-up"
+                    } 30s linear infinite alternate`,
+                    willChange: "object-position",
+                  }}
                 />
+              );
+            }
+            if (isTwitterPost(post?.url, post?.platform)) {
+              const body = post?.text || safeCaption || "Tweet";
+              return (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#fff",
+                    color: "#000",
+                    padding: 16,
+                    boxSizing: "border-box",
+                    overflow: "auto",
+                    textAlign: "left",
+                    wordBreak: "break-word",
+                    overflowWrap: "anywhere",
+                    whiteSpace: "pre-wrap",
+                    lineHeight: 1.35,
+                    fontSize: 18,
+                  }}
+                >
+                  {body}
+                </div>
               );
             }
             return null;
           })()}
         </div>
-        <div style={{ minWidth: 0 }}>
-          {post?.avatarUrl && post?.username && (
+        <div
+          ref={rightColRef}
+          style={{
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            height: "100%",
+          }}
+        >
+          <div
+            ref={whitePanelRef}
+            style={{
+              background: "var(--color-star-white)",
+              color: "var(--color-text-inverse)",
+              padding: "var(--space-4)",
+              borderRadius: "var(--radius-md)",
+              boxSizing: "border-box",
+            }}
+          >
+            {post?.avatarUrl && post?.username && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 8,
+                }}
+              >
+                <img
+                  src={post.avatarUrl}
+                  alt={post.username || "User"}
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                  }}
+                />
+                <div style={titleStyle}>{"@" + post.username}</div>
+              </div>
+            )}
+            {safeCaption && (
+              <p style={captionStyle}>{renderHashtagText(safeCaption)}</p>
+            )}
+          </div>
+          {showMotor && (
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: 8,
+                height: motorHeight,
+                position: "relative",
+                marginTop: 8,
+                overflow: "hidden",
               }}
             >
-              <img
-                src={post.avatarUrl}
-                alt={post.username || "User"}
+              <div
                 style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: "50%",
-                  objectFit: "cover",
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: motorHeight,
+                  pointerEvents: "none",
                 }}
-              />
-              <div style={titleStyle}>{"@" + post.username}</div>
+              >
+                <div style={bikeRunnerStyle}>
+                  <AnimatedMotorcycle size={motorHeight || 0} />
+                </div>
+              </div>
             </div>
           )}
-          {safeCaption && <p style={captionStyle}>{safeCaption}</p>}
         </div>
       </div>
     </div>

@@ -28,6 +28,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
 }) => {
   const [posts, setPosts] = useState<SocialPost[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Scroll shadow indicators for the posts grid
   const gridRef = useRef<HTMLDivElement>(null);
@@ -44,24 +45,30 @@ export const CityPopup: React.FC<CityPopupProps> = ({
   };
 
   useEffect(() => {
+    const abort = new AbortController();
     let isMounted = true;
+    setLoading(true);
+    setError(null);
 
     async function loadPosts() {
       try {
-        // find city id first
         const all = await fetchCities();
         const match = all.find(
           (c) => c.city === city.city && c.state === city.state
         );
-        if (match) {
-          const data = await fetchCityPosts(match.id);
-          if (isMounted) setPosts(data);
+        if (!match) {
+          throw new Error("City not found");
         }
-      } catch (e) {
-        // ignore errors silently for now
-        if (isMounted) setPosts([]);
+        const data = await fetchCityPosts(match.id);
+        if (isMounted) setPosts(data);
+      } catch (e: any) {
+        if (abort.signal.aborted) return;
+        if (isMounted) {
+          setError(e?.message || "Failed to load posts");
+          setPosts([]);
+        }
       } finally {
-        if (isMounted) setLoading(false);
+        if (!abort.signal.aborted && isMounted) setLoading(false);
       }
     }
 
@@ -69,6 +76,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
 
     return () => {
       isMounted = false;
+      abort.abort();
     };
   }, [city.city, city.state]);
 
@@ -182,6 +190,32 @@ export const CityPopup: React.FC<CityPopupProps> = ({
   const gridMaxHeight: string | undefined = inDrawer
     ? undefined
     : "calc((((min(80vw, 600px)) - (var(--space-3) * 2)) / 3) * (8 / 3) + var(--space-2))";
+
+  const renderHashtagText = (text: string) => {
+    const parts: React.ReactNode[] = [];
+    const regex = /(#[A-Za-z0-9_]+)/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      const tag = match[1];
+      parts.push(
+        <span
+          key={`${match.index}-${tag}`}
+          style={{ color: "var(--color-liberty-blue)" }}
+        >
+          {tag}
+        </span>
+      );
+      lastIndex = match.index + tag.length;
+    }
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    return <>{parts}</>;
+  };
 
   return (
     <div style={containerStyles}>
@@ -337,6 +371,21 @@ export const CityPopup: React.FC<CityPopupProps> = ({
             }}
           />
         )}
+        {loading && (
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "var(--space-3)",
+              color: "var(--color-text-secondary)",
+            }}
+          >
+            Loading posts…
+          </div>
+        )}
+
         {loading &&
           Array.from({ length: 6 }).map((_, i) => (
             <Card
@@ -366,6 +415,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
           ))}
 
         {!loading &&
+          !error &&
           posts &&
           posts.length > 0 &&
           posts.slice(0, 30).map((post, i) => {
@@ -374,6 +424,10 @@ export const CityPopup: React.FC<CityPopupProps> = ({
             const src = imgUrl;
             const href = post.url || "#";
             const title = post.text || "Social post";
+            const isTwitter =
+              (post.platform || "").toLowerCase() === "twitter" ||
+              (post.url || "").includes("twitter.com") ||
+              (post.url || "").includes("x.com");
             return (
               <Card
                 key={i}
@@ -420,6 +474,37 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                         }}
                       />
                     </div>
+                  ) : isTwitter ? (
+                    <div
+                      style={{
+                        width: "100%",
+                        aspectRatio: "3 / 4",
+                        background: "#fff",
+                        color: "#000",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "stretch",
+                        justifyContent: "flex-start",
+                        padding: "12px",
+                        overflow: "auto",
+                        boxSizing: "border-box",
+                        borderRadius: 0,
+                        textAlign: "left",
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere",
+                        whiteSpace: "pre-wrap",
+                        lineHeight: 1.3,
+                        fontSize: "clamp(12px, 1.8vw, 16px)",
+                      }}
+                      title={title}
+                    >
+                      {/* Username/avatar removed here; shown only in expanded row */}
+                      <div>
+                        {renderHashtagText(
+                          post.text || post.caption || "Tweet"
+                        )}
+                      </div>
+                    </div>
                   ) : (
                     <div
                       style={{
@@ -445,7 +530,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
             );
           })}
 
-        {!loading && posts && posts.length === 0 && (
+        {!loading && !error && posts && posts.length === 0 && (
           <div
             style={{
               gridColumn: "1 / -1",
@@ -454,6 +539,62 @@ export const CityPopup: React.FC<CityPopupProps> = ({
             }}
           >
             No posts yet.
+          </div>
+        )}
+
+        {!loading && error && (
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 8,
+              padding: "var(--space-3)",
+              color: "var(--color-text-secondary)",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ marginBottom: 4 }}>Failed to load posts.</div>
+            <button
+              onClick={() => {
+                setLoading(true);
+                setError(null);
+                setPosts(null);
+                // trigger effect by toggling a tiny state or relying on deps; we can reuse city deps by force-setting
+                // no-op because deps are city props; just re-run logic locally
+                // Call same loader
+                // We can't easily call the useEffect function; let loading indicator show and user can close/reopen popup or change city to refetch.
+                // Better approach: simple inline refetch:
+                (async () => {
+                  try {
+                    const all = await fetchCities();
+                    const match = all.find(
+                      (c) => c.city === city.city && c.state === city.state
+                    );
+                    if (!match) throw new Error("City not found");
+                    const data = await fetchCityPosts(match.id);
+                    setPosts(data);
+                    setError(null);
+                  } catch (e: any) {
+                    setError(e?.message || "Failed to load posts");
+                  } finally {
+                    setLoading(false);
+                  }
+                })();
+              }}
+              style={{
+                appearance: "none",
+                background: "var(--color-primary)",
+                color: "white",
+                border: "none",
+                borderRadius: 6,
+                padding: "8px 12px",
+                cursor: "pointer",
+              }}
+            >
+              Retry
+            </button>
           </div>
         )}
       </div>

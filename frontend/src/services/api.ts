@@ -19,6 +19,37 @@ export class ApiError extends Error {
   }
 }
 
+// Simple retry helper for transient errors (5xx/429) with exponential backoff
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  options?: { retries?: number; baseDelayMs?: number }
+): Promise<Response> {
+  const retries = options?.retries ?? 2;
+  const baseDelayMs = options?.baseDelayMs ?? 300;
+  let lastError: unknown = undefined;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(input, init);
+      if (!res.ok && (res.status >= 500 || res.status === 429)) {
+        // transient error: retry
+        throw new ApiError(res.status, `Transient error ${res.status}`);
+      }
+      return res;
+    } catch (err) {
+      lastError = err;
+      if (attempt === retries) break;
+      const delay = baseDelayMs * Math.pow(2, attempt);
+      await sleep(delay);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Request failed");
+}
+
 export async function fetchStatus(): Promise<Status> {
   const response = await fetch(`${API_BASE_URL}/api/status`);
 
@@ -80,7 +111,7 @@ export async function updateStatus(
 // -------------------- Journey --------------------
 
 export async function fetchCities(): Promise<City[]> {
-  const response = await fetch(`${API_BASE_URL}/api/cities`);
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/cities`);
   if (!response.ok) {
     throw new ApiError(response.status, "Failed to fetch cities");
   }
@@ -289,11 +320,26 @@ function normalizeCaptionToText(caption?: string): string | undefined {
 }
 
 export async function fetchCityPosts(cityId: number): Promise<SocialPost[]> {
-  const res = await fetch(`${API_BASE_URL}/api/cities/${cityId}/posts`);
+  const res = await fetchWithRetry(
+    `${API_BASE_URL}/api/cities/${cityId}/posts`
+  );
   if (!res.ok) throw new ApiError(res.status, "Failed to fetch city posts");
   const data: SocialPost[] = await res.json();
   // Normalize `text` from curator `caption` (e.g., TikTok embeds -> section text)
-  return data.map((p) => ({ ...p, text: normalizeCaptionToText(p.caption) }));
+  // and proxy media/avatar URLs through backend to avoid CORS issues
+  return data.map((p) => ({
+    ...p,
+    mediaUrl: p.mediaUrl
+      ? `${API_ORIGIN}/api/proxy-media?url=${encodeURIComponent(p.mediaUrl)}`
+      : p.mediaUrl,
+    imageUrl: p.imageUrl
+      ? `${API_ORIGIN}/api/proxy-media?url=${encodeURIComponent(p.imageUrl)}`
+      : p.imageUrl,
+    avatarUrl: p.avatarUrl
+      ? `${API_ORIGIN}/api/proxy-media?url=${encodeURIComponent(p.avatarUrl)}`
+      : p.avatarUrl,
+    text: normalizeCaptionToText(p.caption),
+  }));
 }
 
 export async function fetchAllPosts(): Promise<SocialPost[]> {

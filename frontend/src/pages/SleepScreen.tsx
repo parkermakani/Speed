@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useCallback,
 } from "react";
+import type React from "react";
 import { fetchAllPosts, fetchSettings, type SocialPost } from "../services/api";
 import SleepExpandRow from "../components/SleepExpandRow";
 import { Header } from "../components/Header";
@@ -76,6 +77,32 @@ export default function SleepScreen() {
     }
     return out;
   }, [posts]);
+
+  const renderHashtagText = (text: string) => {
+    const parts: React.ReactNode[] = [];
+    const regex = /(#[A-Za-z0-9_]+)/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      const tag = match[1];
+      parts.push(
+        <span
+          key={`${match.index}-${tag}`}
+          style={{ color: "var(--color-liberty-blue)" }}
+        >
+          {tag}
+        </span>
+      );
+      lastIndex = match.index + tag.length;
+    }
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    return <>{parts}</>;
+  };
 
   // Initialize or resize visual order when length changes
   useEffect(() => {
@@ -273,12 +300,12 @@ export default function SleepScreen() {
         const ctrlX = midX + nx * bend;
         const ctrlY = midY + ny * bend;
         // Initial facing angle
-        const baseAngle = Math.atan2(dy, dx);
+        const baseAngle = 0; // keep upright
         setFloatAngle(baseAngle);
         setFloatPos({ x: startX, y: startY });
         setFloatVisible(true);
         const DUR = 20000 + Math.random() * 15000; // slower drift
-        const spinSpeed = Math.random() * 0.25 - 0.125; // rad/sec slow spin
+        const spinSpeed = 0; // no spin, always upright
         const startTime = performance.now();
         const animate = (now: number) => {
           const t = Math.min(1, (now - startTime) / DUR);
@@ -293,7 +320,7 @@ export default function SleepScreen() {
           // Derivative for tangent angle
           const dxdt = 2 * omt * (ctrlX - startX) + 2 * easeT * (endX - ctrlX);
           const dydt = 2 * omt * (ctrlY - startY) + 2 * easeT * (endY - ctrlY);
-          const travelAngle = Math.atan2(dydt, dxdt);
+          const travelAngle = 0;
           const elapsedSec = (now - startTime) / 1000;
           setFloatAngle(travelAngle + spinSpeed * elapsedSec);
           if (t < 1) {
@@ -561,7 +588,7 @@ export default function SleepScreen() {
       .sleep-wrapper { position: fixed; inset: 0; background: var(--color-bg); color: var(--color-text); }
       .sleep-grid { display: grid; grid-template-columns: repeat(5, 1fr); height: 100%; overflow-y: scroll; scrollbar-width: none; }
       .sleep-grid::-webkit-scrollbar { width: 0px; height: 0px; }
-      .sleep-tile { width: 100%; aspect-ratio: 1 / 1; position: relative; overflow: hidden;}
+      .sleep-tile { width: 100%; aspect-ratio: 3 / 4; position: relative; overflow: hidden;}
       .sleep-tile > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
       .sleep-expand { grid-column: 1 / -1; position: relative; overflow: hidden; height: 0; opacity: 0; transition: height 400ms ease, opacity 300ms ease; }
       .sleep-expand.enter { opacity: 1; }
@@ -612,6 +639,10 @@ export default function SleepScreen() {
             const postIdx = order[i] ?? i;
             const p = displayPosts[postIdx];
             const img = p?.mediaUrl || p?.imageUrl;
+            const isTwitter =
+              (p?.platform || "").toLowerCase() === "twitter" ||
+              (p?.url || "").includes("twitter.com") ||
+              (p?.url || "").includes("x.com");
             const href = p?.url || undefined;
             const inner = (
               <div
@@ -627,57 +658,65 @@ export default function SleepScreen() {
                   }
                 }}
               >
-                {/* Header with avatar and username (guarded render) */}
-                {!hideUserBar && p.avatarUrl && p.username && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 6,
-                      left: 6,
-                      right: 6,
-                      display: "flex",
-                      flexDirection: "row",
-                      alignItems: "center",
-                      zIndex: 2,
-                      background: "var(--color-primary-50)",
-                      padding: "4px 8px",
-                      borderRadius: "var(--radius-lg)",
-                      backdropFilter: "blur(2px)",
-                      minWidth: 0,
-                      gap: 8,
-                    }}
-                  >
-                    <img
-                      src={p.avatarUrl}
-                      alt={`@${p.username || "Unknown"}`}
-                      style={{
-                        position: "relative",
-                        width: 40,
-                        height: 40,
-                        borderRadius: "50%",
-                        objectFit: "cover",
-                        flex: "0 0 20px",
-                      }}
-                    />
-                    <span
-                      style={{
-                        color: "white",
-                        fontSize: 16,
-                        lineHeight: 1,
-                        flex: "1 1 auto",
-                        minWidth: 0,
-                        overflow: "hidden",
-                        whiteSpace: "nowrap",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {`@${p.username || "Unknown"}`}
-                    </span>
-                  </div>
-                )}
+                {/* Username/avatar removed; shown only in expanded row */}
 
                 {img ? (
                   <img src={img} alt={p.caption || "Post"} />
+                ) : isTwitter ? (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "stretch",
+                      justifyContent: "flex-start",
+                      background: "#fff",
+                      color: "#000",
+                      padding: "12px",
+                      boxSizing: "border-box",
+                      overflow: "auto",
+                      textAlign: "left",
+                      wordBreak: "break-word",
+                      overflowWrap: "anywhere",
+                      whiteSpace: "pre-wrap",
+                      lineHeight: 1.3,
+                      fontSize: "clamp(12px, 1.6vw, 16px)",
+                    }}
+                  >
+                    {(p?.avatarUrl || p?.username) && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 8,
+                        }}
+                      >
+                        {p?.avatarUrl && (
+                          <img
+                            src={p.avatarUrl}
+                            alt={p.username || "User"}
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: "50%",
+                              objectFit: "cover",
+                              flex: "0 0 36px",
+                            }}
+                          />
+                        )}
+                        {p?.username && (
+                          <span style={{ color: "#000", fontWeight: 600 }}>
+                            @{p.username}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div>
+                      {renderHashtagText(p?.text || p?.caption || "Tweet")}
+                    </div>
+                  </div>
                 ) : (
                   <div
                     style={{
