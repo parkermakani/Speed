@@ -7,7 +7,7 @@ import {
   useCallback,
 } from "react";
 import type React from "react";
-import { fetchAllPosts, fetchSettings, type SocialPost } from "../services/api";
+import { fetchAllPosts, type SocialPost } from "../services/api";
 import SleepExpandRow from "../components/SleepExpandRow";
 import { Header } from "../components/Header";
 import { Quote } from "../components/Quote";
@@ -22,16 +22,7 @@ export default function SleepScreen() {
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const scrollTimerRef = useRef<number | null>(null);
-  const [settingsHideUserBar, setSettingsHideUserBar] =
-    useState<boolean>(false);
-  const urlHideUserBar =
-    typeof window !== "undefined" &&
-    (() => {
-      const params = new URLSearchParams(window.location.search);
-      const v = (params.get("hideUserBar") || "").toLowerCase();
-      return v === "1" || v === "true" || v === "yes";
-    })();
-  const hideUserBar = urlHideUserBar || settingsHideUserBar;
+  // Removed user bar toggle; no longer used
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const expandedIndexRef = useRef<number | null>(null);
   const [expandedAnchorIndex, setExpandedAnchorIndex] = useState<number | null>(
@@ -122,13 +113,9 @@ export default function SleepScreen() {
     let mounted = true;
     const load = async () => {
       try {
-        const [data, settings] = await Promise.all([
-          fetchAllPosts(),
-          fetchSettings(),
-        ]);
+        const data = await fetchAllPosts();
         if (mounted) {
           setPosts(data);
-          setSettingsHideUserBar(!!settings.sleepHideUserBar);
         }
       } catch {}
       if (mounted) setLoading(false);
@@ -318,8 +305,7 @@ export default function SleepScreen() {
             omt * omt * startY + 2 * omt * easeT * ctrlY + easeT * easeT * endY;
           setFloatPos({ x, y });
           // Derivative for tangent angle
-          const dxdt = 2 * omt * (ctrlX - startX) + 2 * easeT * (endX - ctrlX);
-          const dydt = 2 * omt * (ctrlY - startY) + 2 * easeT * (endY - ctrlY);
+          // Keep upright; ignore derivative
           const travelAngle = 0;
           const elapsedSec = (now - startTime) / 1000;
           setFloatAngle(travelAngle + spinSpeed * elapsedSec);
