@@ -29,19 +29,43 @@ export const CityPopup: React.FC<CityPopupProps> = ({
   const [posts, setPosts] = useState<SocialPost[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState<number>(30);
 
   // Scroll shadow indicators for the posts grid
   const gridRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);
 
-  const updateScrollShadows = () => {
-    const el = gridRef.current;
+  const updateScrollShadows = (sourceEl?: HTMLElement | null) => {
+    const el = sourceEl || gridRef.current;
     if (!el) return;
     const up = el.scrollTop > 0;
     const down = el.scrollTop + el.clientHeight < el.scrollHeight - 1;
     setCanScrollUp(up);
     setCanScrollDown(down);
+  };
+
+  const findScrollableParent = (el: HTMLElement | null): HTMLElement | null => {
+    let node: HTMLElement | null = el?.parentElement || null;
+    while (node) {
+      const style = window.getComputedStyle(node);
+      const oy = style.overflowY;
+      if (oy === "auto" || oy === "scroll") return node;
+      node = node.parentElement;
+    }
+    return null;
+  };
+
+  const maybeLoadMore = (sourceEl?: HTMLElement | null) => {
+    const el = sourceEl || gridRef.current;
+    if (!el) return;
+    if (!posts || posts.length === 0) return;
+    if (visibleCount >= posts.length) return;
+    const threshold = 200;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - threshold) {
+      setVisibleCount((c) => Math.min(c + 30, posts.length));
+    }
   };
 
   useEffect(() => {
@@ -60,7 +84,10 @@ export const CityPopup: React.FC<CityPopupProps> = ({
           throw new Error("City not found");
         }
         const data = await fetchCityPosts(match.id);
-        if (isMounted) setPosts(data);
+        if (isMounted) {
+          setPosts(data);
+          setVisibleCount(Math.min(30, data.length || 0));
+        }
       } catch (e: any) {
         if (abort.signal.aborted) return;
         if (isMounted) {
@@ -85,23 +112,64 @@ export const CityPopup: React.FC<CityPopupProps> = ({
     const el = gridRef.current;
     if (!el) return;
 
-    const onScroll = () => updateScrollShadows();
-    el.addEventListener("scroll", onScroll, { passive: true });
-    updateScrollShadows();
+    const scrollEl = inDrawer ? findScrollableParent(el) || el : el;
+
+    const onScroll = () => {
+      updateScrollShadows(scrollEl);
+      maybeLoadMore(scrollEl);
+    };
+    scrollEl.addEventListener("scroll", onScroll, { passive: true });
+    updateScrollShadows(scrollEl);
+    // If already near-bottom on mount, load more immediately
+    maybeLoadMore(scrollEl);
 
     const ro = new ResizeObserver(() => updateScrollShadows());
     ro.observe(el);
 
     return () => {
-      el.removeEventListener("scroll", onScroll);
+      scrollEl.removeEventListener("scroll", onScroll);
       ro.disconnect();
     };
-  }, [gridRef.current]);
+  }, [inDrawer]);
 
   useEffect(() => {
     // Recompute shadows when content changes
-    updateScrollShadows();
-  }, [loading, posts]);
+    const base = gridRef.current;
+    const scrollEl = inDrawer ? findScrollableParent(base!) || base : base;
+    updateScrollShadows(scrollEl || undefined);
+  }, [loading, posts, inDrawer]);
+
+  // Reset visible count on posts change
+  useEffect(() => {
+    if (posts) setVisibleCount(Math.min(30, posts.length));
+  }, [posts]);
+
+  // IntersectionObserver sentinel to load more when near bottom
+  useEffect(() => {
+    const base = gridRef.current;
+    const sentinel = sentinelRef.current;
+    if (!base || !sentinel) return;
+    const rootEl = inDrawer ? findScrollableParent(base) || base : base;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setVisibleCount((c) => Math.min(posts?.length || 0, c + 30));
+          }
+        }
+      },
+      { root: rootEl, rootMargin: "200px 0px", threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => {
+      try {
+        observer.unobserve(sentinel);
+      } catch {}
+      try {
+        observer.disconnect();
+      } catch {}
+    };
+  }, [inDrawer, posts]);
 
   // Inject Mapbox popup override styles once
   if (
@@ -418,7 +486,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
           !error &&
           posts &&
           posts.length > 0 &&
-          posts.slice(0, 30).map((post, i) => {
+          posts.slice(0, visibleCount).map((post, i) => {
             const imgUrl = post.mediaUrl || post.imageUrl;
             // Use proxied URL already provided by API for posts endpoint; city posts may not be proxied
             const src = imgUrl;
@@ -530,6 +598,41 @@ export const CityPopup: React.FC<CityPopupProps> = ({
             );
           })}
 
+        {/* Infinite-scroll sentinel and fallback Load More */}
+        {!loading && !error && posts && visibleCount < posts.length && (
+          <>
+            <div
+              ref={sentinelRef}
+              style={{ gridColumn: "1 / -1", height: 1 }}
+            />
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                display: "flex",
+                justifyContent: "center",
+                padding: "var(--space-2)",
+              }}
+            >
+              <button
+                onClick={() =>
+                  setVisibleCount((c) => Math.min(posts?.length || 0, c + 30))
+                }
+                style={{
+                  appearance: "none",
+                  background: "var(--color-primary)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                }}
+              >
+                Load more
+              </button>
+            </div>
+          </>
+        )}
+
         {!loading && !error && posts && posts.length === 0 && (
           <div
             style={{
@@ -575,6 +678,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                     if (!match) throw new Error("City not found");
                     const data = await fetchCityPosts(match.id);
                     setPosts(data);
+                    setVisibleCount(Math.min(30, data.length || 0));
                     setError(null);
                   } catch (e: any) {
                     setError(e?.message || "Failed to load posts");

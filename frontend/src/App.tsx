@@ -71,6 +71,130 @@ function App() {
     loadData();
   }, []);
 
+  const showMarker = useMemo(() => {
+    if (!sleep?.isSleep || !sleep?.isTraveling) return true;
+    if (!journey?.currentCity || !(journey as any).nextCity || !settings)
+      return true;
+    const nextStartIso = (journey as any).nextCity?.lastCurrentAt as any;
+    if (!nextStartIso) return true;
+    try {
+      const nextStart = new Date(nextStartIso);
+      const depMinUtc = (settings as any).departureTimeUtc;
+      if (typeof depMinUtc !== "number") return true;
+      const depHour = Math.floor(depMinUtc / 60);
+      const depMin = depMinUtc % 60;
+      const dep = new Date(nextStart);
+      dep.setUTCHours(depHour, depMin, 0, 0);
+      if (dep > nextStart) dep.setUTCDate(dep.getUTCDate() - 1);
+      const now = new Date();
+      // Compare using UTC-aligned dates
+      const nowUtc = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate(),
+          now.getUTCHours(),
+          now.getUTCMinutes(),
+          now.getUTCSeconds(),
+          now.getUTCMilliseconds()
+        )
+      );
+      const decision = nowUtc >= dep;
+      try {
+        console.debug("[TravelDebug] showMarker decision", {
+          isSleep: sleep?.isSleep,
+          isTraveling: sleep?.isTraveling,
+          currentCity: journey?.currentCity
+            ? `${journey.currentCity.city}, ${journey.currentCity.state}`
+            : null,
+          nextCity: (journey as any).nextCity
+            ? `${(journey as any).nextCity.city}, ${
+                (journey as any).nextCity.state
+              }`
+            : null,
+          nextStartIso,
+          nextStartUtc: nextStart.toISOString(),
+          departureTimeUtcMin: depMinUtc,
+          depUtcISO: dep.toISOString(),
+          nowUtcISO: nowUtc.toISOString(),
+          decision,
+        });
+      } catch {}
+      return decision;
+    } catch {
+      return true;
+    }
+  }, [sleep?.isSleep, sleep?.isTraveling, journey, settings]);
+
+  // Client-side interpolation so the animated marker moves immediately using times
+  const travelPos = useMemo(() => {
+    if (!sleep?.isSleep || !sleep?.isTraveling) return null;
+    const cc = journey?.currentCity as any;
+    const nx = (journey as any)?.nextCity as any;
+    if (!cc || !nx || !settings) return null;
+    const nextStartIso = nx?.lastCurrentAt as any;
+    if (!nextStartIso) return null;
+    try {
+      const nextStart = new Date(nextStartIso);
+      const depMinUtc = (settings as any).departureTimeUtc;
+      if (typeof depMinUtc !== "number") return null;
+      const depHour = Math.floor(depMinUtc / 60);
+      const depMin = depMinUtc % 60;
+      const dep = new Date(nextStart);
+      dep.setUTCHours(depHour, depMin, 0, 0);
+      if (dep > nextStart) dep.setUTCDate(dep.getUTCDate() - 1);
+      const now = new Date();
+      const nowUtc = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate(),
+          now.getUTCHours(),
+          now.getUTCMinutes(),
+          now.getUTCSeconds(),
+          now.getUTCMilliseconds()
+        )
+      );
+      const total = (nextStart.getTime() - dep.getTime()) / 1000;
+      if (total <= 0) return { lat: nx.lat, lng: nx.lng };
+      let f = (nowUtc.getTime() - dep.getTime()) / 1000 / total;
+      f = Math.max(0, Math.min(1, f));
+      const lat = cc.lat + (nx.lat - cc.lat) * f;
+      const lng = cc.lng + (nx.lng - cc.lng) * f;
+      try {
+        console.debug("[TravelDebug] client interpolation", {
+          f,
+          depUtcISO: dep.toISOString(),
+          nextStartUtc: nextStart.toISOString(),
+          nowUtcISO: nowUtc.toISOString(),
+          lat,
+          lng,
+        });
+      } catch {}
+      return { lat, lng };
+    } catch {
+      return null;
+    }
+  }, [sleep?.isSleep, sleep?.isTraveling, journey, settings]);
+
+  // Poll status while sleep traveling to keep marker moving between server updates
+  useEffect(() => {
+    if (!sleep?.isSleep || !sleep?.isTraveling) return;
+    let id: number | undefined;
+    const tick = async () => {
+      try {
+        const s = await fetchStatus();
+        setStatus(s);
+      } catch {}
+    };
+    // Initial tick, then poll every 60s (server updates every ~5min)
+    tick();
+    id = window.setInterval(tick, 60000);
+    return () => {
+      if (id) window.clearInterval(id);
+    };
+  }, [sleep?.isSleep, sleep?.isTraveling]);
+
   if (loading) {
     return <div className="app loading">Loading...</div>;
   }
@@ -153,13 +277,23 @@ function App() {
 
       <div className="map-container">
         <FlatMap
-          lat={journey.currentCity?.lat || status.lat}
-          lng={journey.currentCity?.lng || status.lng}
+          lat={
+            sleep.isSleep && sleep.isTraveling && travelPos
+              ? travelPos.lat
+              : journey.currentCity?.lat || status.lat
+          }
+          lng={
+            sleep.isSleep && sleep.isTraveling && travelPos
+              ? travelPos.lng
+              : journey.currentCity?.lng || status.lng
+          }
           state={journey.currentCity?.state || status.state}
           path={memoPath}
           pastCities={journey.path}
           isSleep={sleep.isSleep}
+          isTraveling={!!sleep.isTraveling}
           currentCity={journey.currentCity || null}
+          showMarker={showMarker}
         />
 
         {/* Removed sleep overlay per user request */}

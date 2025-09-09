@@ -260,7 +260,8 @@ export async function updateMerch(
 export async function fetchSleep(): Promise<SleepResponse> {
   const res = await fetch(`${API_BASE_URL}/api/sleep`);
   if (!res.ok) throw new ApiError(res.status, "Failed to fetch sleep");
-  return await res.json();
+  const data = await res.json();
+  return { isSleep: !!data.isSleep, isTraveling: !!data.isTraveling };
 }
 
 export async function toggleSleep(
@@ -279,7 +280,28 @@ export async function toggleSleep(
     const err = await res.json();
     throw new ApiError(res.status, err.detail || "Failed to toggle sleep");
   }
-  return await res.json();
+  const data = await res.json();
+  return { isSleep: !!data.isSleep, isTraveling: !!data.isTraveling };
+}
+
+export async function toggleTraveling(
+  isTraveling: boolean,
+  token: string
+): Promise<SleepResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/sleep`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ isTraveling }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new ApiError(res.status, err.detail || "Failed to toggle traveling");
+  }
+  const data = await res.json();
+  return { isSleep: !!data.isSleep, isTraveling: !!data.isTraveling };
 }
 
 // -------------------- Social Posts --------------------
@@ -430,13 +452,36 @@ export async function updateSettings(
   payload: Partial<Settings>,
   token: string
 ): Promise<Settings> {
+  // If a local departureTime is provided, also send minutes since midnight UTC for consistency
+  const body: any = { ...payload };
+  if (
+    typeof body.departureTime === "string" &&
+    body.departureTime.includes(":")
+  ) {
+    try {
+      const [hh, mm] = body.departureTime.split(":");
+      // Interpret as local time on today, convert to minutes since midnight UTC
+      const now = new Date();
+      const d = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        Number(hh),
+        Number(mm),
+        0,
+        0
+      );
+      const minutesUtc = d.getUTCHours() * 60 + d.getUTCMinutes();
+      body.departureTimeUtc = minutesUtc;
+    } catch {}
+  }
   const res = await fetch(`${API_BASE_URL}/api/settings`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const err = await res.json();

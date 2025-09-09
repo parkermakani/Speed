@@ -36,15 +36,18 @@ export interface JourneyCity {
   state: string;
   lat: number;
   lng: number;
+  lastCurrentAt?: string; // ISO timestamp for start time
 }
 
 export interface JourneyResponse {
   currentCity: JourneyCity | null;
   path: JourneyCity[];
+  nextCity?: JourneyCity | null;
 }
 
 export interface SleepResponse {
   isSleep: boolean;
+  isTraveling?: boolean;
 }
 
 export interface Settings {
@@ -61,6 +64,8 @@ export interface Settings {
   curatorJsonUrl?: string;
   disableMerch?: boolean;
   sleepHideUserBar?: boolean;
+  departureTime?: string; // HH:MM UTC
+  departureTimezone?: string; // IANA TZ, e.g., America/New_York
 }
 
 // Tip system types

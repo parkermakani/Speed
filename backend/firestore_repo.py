@@ -284,6 +284,10 @@ DEFAULT_SETTINGS = {
     # Feature flags
     "disableMerch": False,
     "sleepHideUserBar": False,
+    # Universal departure time (HH:MM, 24h, UTC) for travel interpolation
+    "departureTime": "22:00",
+    # Cached minutes since midnight UTC for departureTime (computed client-side)
+    "departureTimeUtc": 1320,
 }
 
 
@@ -337,9 +341,33 @@ def get_sleep_flag() -> bool:
     return bool(doc.get("isSleep")) if doc else False
 
 
+def get_sleep_state() -> dict[str, Any]:
+    """Return current sleep/traveling flags from status doc.
+
+    Shape: { "isSleep": bool, "isTraveling": bool }
+    """
+    doc = get_status() or {}
+    return {
+        "isSleep": bool(doc.get("isSleep")) if doc is not None else False,
+        "isTraveling": bool(doc.get("isTraveling")) if doc is not None else False,
+    }
+
+
 def set_sleep_flag(is_sleep: bool) -> bool:
     update_status({"isSleep": is_sleep})
     return is_sleep
+
+
+def set_sleep_state(*, is_sleep: bool | None = None, is_traveling: bool | None = None) -> dict[str, Any]:
+    """Update one or both sleep state flags and return the merged state."""
+    payload: dict[str, Any] = {}
+    if is_sleep is not None:
+        payload["isSleep"] = is_sleep
+    if is_traveling is not None:
+        payload["isTraveling"] = is_traveling
+    if payload:
+        update_status(payload)
+    return get_sleep_state()
 
 
 # ------------------ Journey helper ------------------
@@ -369,7 +397,15 @@ def compute_journey() -> dict[str, Any]:
     else:
         path = []
 
+    # Determine next city (by order) if any
+    next_city = None
+    if current and current.get("order") is not None:
+        higher = [c for c in cities if (c.get("order") or 0) > (current.get("order") or 0)]
+        higher.sort(key=lambda c: c.get("order") or 0)
+        next_city = higher[0] if higher else None
+
     return {
         "currentCity": current,
         "path": path,
+        "nextCity": next_city,
     }

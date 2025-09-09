@@ -564,17 +564,21 @@ async def upload_city_locator_icon(
 
 @api.get("/sleep")
 async def get_sleep():
-    return {"isSleep": repo.get_sleep_flag()}
+    # Return both flags for future-proofing
+    return repo.get_sleep_state()
 
 
 class SleepToggle(SQLModel):
-    isSleep: bool
+    isSleep: bool | None = None
+    isTraveling: bool | None = None
 
 
 @api.put("/sleep")
 async def toggle_sleep(payload: SleepToggle, current_admin=Depends(get_current_admin)):
-    flag = repo.set_sleep_flag(payload.isSleep)
-    return {"isSleep": flag}
+    state = repo.set_sleep_state(
+        is_sleep=payload.isSleep, is_traveling=payload.isTraveling
+    )
+    return state
 
 
 # --- Mount static files LAST so API routes take precedence ---
@@ -820,6 +824,8 @@ class SettingsUpdate(SQLModel):
     curatorJsonUrl: str | None = None
     disableMerch: bool | None = None
     sleepHideUserBar: bool | None = None
+    departureTime: str | None = None
+    departureTimeUtc: int | None = None
 
 
 @api.put("/settings")

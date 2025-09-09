@@ -60,6 +60,81 @@ async def scrape_current_city_job():
     _last_run_saved_count = len(posts or [])
 
 
+async def update_travel_position_job():
+    """When Sleep + Traveling are enabled, update status lat/lng toward next city.
+
+    Interpolates between current city's lastCurrentAt and next city's lastCurrentAt.
+    If next city's start time is not set, does nothing.
+    """
+    try:
+        sleep_state = repo.get_sleep_state()
+        if not (sleep_state.get("isSleep") and sleep_state.get("isTraveling")):
+            return
+        j = repo.compute_journey()
+        current = j.get("currentCity") or {}
+        nxt = j.get("nextCity") or None
+        if not current or not nxt:
+            return
+        from datetime import datetime as _dt
+        def _parse_iso(val):
+            try:
+                return _dt.fromisoformat(str(val).replace("Z", "+00:00")).replace(tzinfo=None)
+            except Exception:
+                return None
+        start_cur = _parse_iso(current.get("lastCurrentAt") or current.get("last_current_at"))
+        start_next = _parse_iso(nxt.get("lastCurrentAt") or nxt.get("last_current_at"))
+        if not (start_cur and start_next):
+            return
+        # Compute TODAY's departure timestamp (UTC) using universal departureTime (HH:MM)
+        settings = repo.get_settings()
+        # Use minutes since midnight UTC for consistent server-side math.
+        dep_min_utc = settings.get("departureTimeUtc")
+        if isinstance(dep_min_utc, int) and 0 <= dep_min_utc < 1440:
+            dep_hour = dep_min_utc // 60
+            dep_min = dep_min_utc % 60
+        else:
+            dep_str = str(settings.get("departureTime") or "22:00").strip()
+            try:
+                hh, mm = dep_str.split(":")
+                dep_hour = int(hh)
+                dep_min = int(mm)
+            except Exception:
+                dep_hour = 22
+                dep_min = 0
+        now = _dt.utcnow().replace(tzinfo=None)
+        # Align departure to the arrival date in UTC then adjust day if after arrival
+        dep_dt = start_next.replace(hour=dep_hour, minute=dep_min, second=0, microsecond=0)
+        if dep_dt > start_next:
+            from datetime import timedelta as _td
+            dep_dt = dep_dt - _td(days=1)
+        # Progress window is [dep_dt, start_next]
+        total = (start_next - dep_dt).total_seconds()
+        if total <= 0:
+            return
+        # If we're before departure, keep at origin
+        if now <= dep_dt:
+            f = 0.0
+        elif now >= start_next:
+            f = 1.0
+        else:
+            elapsed = (now - dep_dt).total_seconds()
+            f = max(0.0, min(1.0, elapsed / total))
+        try:
+            clat = float(current.get("lat") or 0.0)
+            clng = float(current.get("lng") or 0.0)
+            nlat = float(nxt.get("lat") or 0.0)
+            nlng = float(nxt.get("lng") or 0.0)
+        except Exception:
+            return
+        lat = clat + (nlat - clat) * f
+        lng = clng + (nlng - clng) * f
+        # Update status; do not change city/state/quote here
+        repo.update_status({"lat": lat, "lng": lng})
+    except Exception:
+        # Non-fatal; skip this tick
+        return
+
+
 _scheduler: AsyncIOScheduler | None = None
 _last_run_at: str | None = None
 _last_run_city_id: int | None = None
@@ -92,6 +167,11 @@ def start_scheduler() -> None:
     _scheduler = AsyncIOScheduler()
     _scheduler.start()
     _reschedule()
+    # Travel position updater runs on a fixed cadence (e.g., every 5 minutes)
+    try:
+        _scheduler.add_job(update_travel_position_job, IntervalTrigger(minutes=5), id="travel-update", replace_existing=True)
+    except Exception:
+        pass
 
 
 def get_status() -> dict:

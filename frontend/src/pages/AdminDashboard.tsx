@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Stack, Text, Button, FormField, Card } from "../components/primitives";
 import { useAuth } from "../hooks/useAuth";
 import { fetchStatus, updateStatus, ApiError } from "../services/api";
-import { fetchSleep, toggleSleep } from "../services/api";
+import { fetchSleep, toggleSleep, toggleTraveling } from "../services/api";
 import { fetchCities, runScrape, runScrapeAll } from "../services/api";
 import { CityTable } from "../components/CityTable";
 import { AdminMerch } from "../components/AdminMerch";
@@ -19,6 +19,7 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
   const { logout, token } = useAuth();
   const [currentStatus, setCurrentStatus] = useState<Status | null>(null);
   const [isSleep, setIsSleep] = useState(false);
+  const [isTraveling, setIsTraveling] = useState(false);
   const [formData, setFormData] = useState<StatusUpdate>({
     lat: 0,
     lng: 0,
@@ -47,6 +48,8 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
     curatorJsonUrl: "",
     disableMerch: false,
     sleepHideUserBar: false,
+    departureTime: "22:00",
+    departureTimezone: "UTC",
   });
   const [submitError, setSubmitError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string>("");
@@ -72,6 +75,7 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
     try {
       const data = await fetchSleep();
       setIsSleep(data.isSleep);
+      setIsTraveling(!!data.isTraveling);
     } catch (e) {
       console.error("Failed to fetch sleep", e);
     }
@@ -87,6 +91,18 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
       console.error("Failed to toggle sleep", e);
       // revert UI
       setIsSleep(!newVal);
+    }
+  };
+
+  const handleTravelingToggle = async () => {
+    if (!token) return;
+    const newVal = !isTraveling;
+    setIsTraveling(newVal);
+    try {
+      await toggleTraveling(newVal, token);
+    } catch (e) {
+      console.error("Failed to toggle traveling", e);
+      setIsTraveling(!newVal);
     }
   };
 
@@ -297,6 +313,33 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
             />
           </Stack>
 
+          <Stack
+            direction="row"
+            spacing="sm"
+            align="center"
+            justify="center"
+            style={{
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-md)",
+              padding: "var(--space-2)",
+              opacity: isSleep ? 1 : 0.5,
+            }}
+          >
+            <label htmlFor="travel-switch">Traveling</label>
+            <input
+              id="travel-switch"
+              type="checkbox"
+              checked={isTraveling}
+              onChange={handleTravelingToggle}
+              disabled={!isSleep}
+              title={
+                isSleep
+                  ? "Enable to trace toward next city"
+                  : "Enable Sleep to allow Traveling"
+              }
+            />
+          </Stack>
+
           {/* Manual scrape button */}
           <Button
             variant="secondary"
@@ -377,6 +420,29 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
                 }
               />
             </FormField>
+            <FormField label="Departure Time (HH:MM)">
+              <input
+                type="time"
+                value={settingsForm.departureTime || ""}
+                onChange={(e) =>
+                  setSettingsForm((p) => ({
+                    ...p,
+                    departureTime: e.target.value,
+                  }))
+                }
+                style={{
+                  padding: "var(--space-3) var(--space-4)",
+                  fontSize: "var(--text-base)",
+                  fontFamily: "var(--font-sans)",
+                  backgroundColor: "var(--color-bg-elevated)",
+                  color: "var(--color-text)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-md)",
+                }}
+              />
+            </FormField>
+            {/* Timezone select removed; we’ll compute UTC minutes client-side */}
+            {/* Custom timezone removed per request */}
             <FormField label="Scrape Interval (minutes)">
               <Input
                 type="number"

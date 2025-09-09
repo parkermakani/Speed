@@ -19,8 +19,12 @@ interface FlatMapProps {
   pastCities?: { city?: string; state?: string; lat: number; lng: number }[];
   /** Whether the map is in sleep mode; changes marker to sleeping animation */
   isSleep?: boolean;
+  /** Whether traveling mode is active during sleep */
+  isTraveling?: boolean;
   /** Current city metadata for popup when clicking the animated marker */
   currentCity?: JourneyCity | null;
+  /** Controls visibility of animated marker (hide before departure) */
+  showMarker?: boolean;
 }
 
 // Mapbox token
@@ -58,7 +62,9 @@ function FlatMapInner({
   path = [],
   pastCities = [],
   isSleep = false,
+  isTraveling = false,
   currentCity = null,
+  showMarker = true,
 }: FlatMapProps) {
   const [selectedCity, setSelectedCity] = useState<JourneyCity | null>(null);
   const isMobile = useMediaQuery("(max-width: 767px)");
@@ -74,6 +80,9 @@ function FlatMapInner({
   );
   const [loading, setLoading] = useState(true);
   const [unsupported, setUnsupported] = useState(false);
+  // Departing city locator marker during traveling
+  const departingMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const departingImgRef = useRef<HTMLImageElement | null>(null);
 
   // Safely unmount the React root for the animated marker outside of React's render tick
   const safeUnmountMarkerRoot = () => {
@@ -182,8 +191,8 @@ function FlatMapInner({
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore - CSSStyleDeclaration doesn't include all possible values
       container.style.touchAction = "manipulation";
-      // Ensure this marker does not sit above past city icons
-      container.style.zIndex = "90";
+      // Ensure animated marker sits above city locator icons
+      container.style.zIndex = "200";
       // Prevent map click handler from closing popup immediately
       try {
         container.addEventListener("click", (e) => e.stopPropagation());
@@ -400,6 +409,12 @@ function FlatMapInner({
         el.style.height = `${size}px`;
       }
     });
+    // Also resize departing marker icon if present
+    if (departingImgRef.current) {
+      const dsize = getIconSizeForZoom(map.getZoom());
+      departingImgRef.current.style.width = `${dsize}px`;
+      departingImgRef.current.style.height = `${dsize}px`;
+    }
   };
 
   const renderPastMarkers = () => {
@@ -421,7 +436,8 @@ function FlatMapInner({
       img.style.cursor = "pointer";
       img.style.pointerEvents = "auto";
       // Keep past markers below the current animated marker
-      img.style.zIndex = "100";
+      // Keep past markers below animated marker
+      img.style.zIndex = "80";
       img.addEventListener("click", (e) => {
         e.stopPropagation();
         setSelectedCity({
@@ -539,7 +555,7 @@ function FlatMapInner({
     drawPath();
     renderPastMarkers();
     updatePastIconSizes();
-  }, [lat, lng, state, path, pastCities, isSleep]);
+  }, [lat, lng, state, path, pastCities, isSleep, showMarker]);
 
   // Manage Mapbox Popup on desktop
   useEffect(() => {
@@ -612,6 +628,142 @@ function FlatMapInner({
       if (popupRef.current) popupRef.current.remove();
     };
   }, []);
+
+  // --------------- Traveling progress (line + departing locator) ---------------
+  const drawTravelProgress = () => {
+    const map = mapRef.current;
+    // Before departure, we still want the animated marker visible but we should hide the departing locator and line until departure.
+    if (!map || !isSleep || !isTraveling || !currentCity || !showMarker) {
+      // remove progress layer/source if present
+      try {
+        if (map?.getLayer("travel-progress-line"))
+          map.removeLayer("travel-progress-line");
+      } catch {}
+      try {
+        if (map?.getSource("travel-progress-src"))
+          map.removeSource("travel-progress-src");
+      } catch {}
+      // clear pulse interval if present
+      try {
+        // @ts-ignore
+        if ((map as any)._travelPulseId)
+          clearInterval((map as any)._travelPulseId);
+      } catch {}
+      // remove departing marker
+      if (departingMarkerRef.current) {
+        departingMarkerRef.current.remove();
+        departingMarkerRef.current = null;
+        departingImgRef.current = null;
+      }
+      return;
+    }
+
+    // Ensure style loaded
+    if (!map.isStyleLoaded()) {
+      map.once("styledata", drawTravelProgress);
+      return;
+    }
+
+    const origin = [currentCity.lng, currentCity.lat] as const;
+    const current = [lng, lat] as const;
+    const coordinates = [origin, current];
+
+    const sourceId = "travel-progress-src";
+    const layerId = "travel-progress-line";
+    const data = {
+      type: "Feature",
+      geometry: { type: "LineString", coordinates },
+    } as const;
+
+    if (!map.getSource(sourceId)) {
+      map.addSource(sourceId, { type: "geojson", data: data as any });
+    } else {
+      (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(data as any);
+    }
+    if (!map.getLayer(layerId)) {
+      map.addLayer({
+        id: layerId,
+        type: "line",
+        source: sourceId,
+        paint: {
+          "line-color": getCSSVariable("--color-primary") || "#B31942",
+          "line-width": 5,
+          "line-opacity": 0.85,
+          "line-dasharray": [2, 1],
+        },
+      });
+      // Pulse animation for travel progress line
+      try {
+        // @ts-ignore
+        if ((map as any)._travelPulseId)
+          clearInterval((map as any)._travelPulseId);
+      } catch {}
+      let up = true;
+      // @ts-ignore
+      (map as any)._travelPulseId = setInterval(() => {
+        try {
+          const m = mapRef.current;
+          if (!m || !m.getLayer(layerId)) return;
+          m.setPaintProperty(layerId, "line-opacity", up ? 0.35 : 0.9);
+          up = !up;
+        } catch {}
+      }, 900);
+    } else {
+      try {
+        map.setPaintProperty(layerId, "line-dasharray", [2, 1] as any);
+      } catch {}
+    }
+
+    // Render departing locator icon at origin
+    if (!departingMarkerRef.current) {
+      const img = document.createElement("img");
+      const custom =
+        (currentCity as any).locatorIconUrl ||
+        (currentCity as any).locatorPng ||
+        null;
+      const initialSize = getIconSizeForZoom(map.getZoom());
+      img.src = custom || allIcons[Math.floor(Math.random() * allIcons.length)];
+      img.style.width = `${initialSize}px`;
+      img.style.height = `${initialSize}px`;
+      img.style.cursor = "pointer";
+      img.style.pointerEvents = "auto";
+      // Keep departing locator below animated marker
+      img.style.zIndex = "80";
+      img.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setSelectedCity({
+          city: currentCity.city,
+          state: currentCity.state,
+          lat: currentCity.lat,
+          lng: currentCity.lng,
+        });
+      });
+      departingImgRef.current = img;
+      departingMarkerRef.current = new mapboxgl.Marker({
+        element: img,
+        anchor: "center",
+      })
+        .setLngLat(origin as unknown as [number, number])
+        .addTo(map);
+    } else {
+      departingMarkerRef.current.setLngLat(
+        origin as unknown as [number, number]
+      );
+    }
+    try {
+      console.debug("[TravelDebug] draw travel progress", {
+        origin,
+        current,
+        lineAdded: true,
+        departingIcon: !!departingMarkerRef.current,
+      });
+    } catch {}
+  };
+
+  // Update travel progress on prop changes
+  useEffect(() => {
+    drawTravelProgress();
+  }, [isSleep, isTraveling, currentCity, lat, lng]);
 
   if (!MAPBOX_TOKEN || MAPBOX_TOKEN.includes("your-")) {
     return (
