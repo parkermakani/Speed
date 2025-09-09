@@ -9,7 +9,7 @@ import httpx
 import os
 from dotenv import load_dotenv
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi import Response
 
 # Load environment variables from .env file
@@ -691,7 +691,25 @@ async def proxy_media(url: str):
             raise HTTPException(status_code=400, detail="Invalid URL scheme")
 
         # Fetch with small timeout
-        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        headers = {
+            # Present as a common browser to avoid CDN blocks
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        # Best-effort Referer as the media origin (some CDNs require it)
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+            headers["Referer"] = origin
+        except Exception:
+            pass
+
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers=headers) as client:
             resp = await client.get(url)
         if resp.status_code >= 400:
             raise HTTPException(status_code=resp.status_code, detail="Upstream error")
@@ -703,9 +721,18 @@ async def proxy_media(url: str):
         }
         return Response(content=resp.content, headers=headers)
     except HTTPException:
-        raise
+        # Let HTTP errors propagate (e.g., 4xx/5xx from upstream)
+        # but as a last resort, redirect the client directly to the media URL so the browser can load it.
+        try:
+            return RedirectResponse(url=url, status_code=302)
+        except Exception:
+            raise
     except Exception:
-        raise HTTPException(status_code=502, detail="Failed to proxy media")
+        # If proxying fails (network/DNS/egress), fall back to redirecting the client to the original URL.
+        try:
+            return RedirectResponse(url=url, status_code=302)
+        except Exception:
+            raise HTTPException(status_code=502, detail="Failed to proxy media")
 
 
 @api.post("/cities/{city_id}/scrape")
