@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { FlatMap } from "./components/FlatMap";
 import { Header } from "./components/Header";
-import { Footer } from "./components/Footer";
 import { Quote } from "./components/Quote";
 import type { Status, JourneyResponse, Settings } from "./types";
 import {
@@ -299,8 +298,7 @@ function App() {
         {/* Removed sleep overlay per user request */}
       </div>
 
-      {/* Footer overlay */}
-      <Footer />
+      {/* Footer removed per request */}
 
       {/* Shop UI */}
       {!settings.disableMerch && (
