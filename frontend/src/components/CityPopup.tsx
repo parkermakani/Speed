@@ -13,6 +13,8 @@ interface CityPopupProps {
   showArrow?: boolean;
   inDrawer?: boolean;
   arrowDirection?: "up" | "down";
+  /** Optional Firestore numeric city id to avoid an extra lookup */
+  cityId?: number;
 }
 
 /**
@@ -25,11 +27,12 @@ export const CityPopup: React.FC<CityPopupProps> = ({
   showArrow = true,
   inDrawer = false,
   arrowDirection = "down",
+  cityId,
 }) => {
   const [posts, setPosts] = useState<SocialPost[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [visibleCount, setVisibleCount] = useState<number>(30);
+  const [visibleCount, setVisibleCount] = useState<number>(12);
 
   // Scroll shadow indicators for the posts grid
   const gridRef = useRef<HTMLDivElement>(null);
@@ -64,7 +67,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
     if (visibleCount >= posts.length) return;
     const threshold = 200;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - threshold) {
-      setVisibleCount((c) => Math.min(c + 30, posts.length));
+      setVisibleCount((c) => Math.min(c + 18, posts.length));
     }
   };
 
@@ -76,17 +79,23 @@ export const CityPopup: React.FC<CityPopupProps> = ({
 
     async function loadPosts() {
       try {
-        const all = await fetchCities();
-        const match = all.find(
-          (c) => c.city === city.city && c.state === city.state
-        );
-        if (!match) {
-          throw new Error("City not found");
+        let idToUse: number | null = null;
+        if (typeof cityId === "number") {
+          idToUse = cityId;
+        } else {
+          const all = await fetchCities();
+          const match = all.find(
+            (c) => c.city === city.city && c.state === city.state
+          );
+          if (!match) {
+            throw new Error("City not found");
+          }
+          idToUse = match.id;
         }
-        const data = await fetchCityPosts(match.id);
+        const data = await fetchCityPosts(idToUse);
         if (isMounted) {
           setPosts(data);
-          setVisibleCount(Math.min(30, data.length || 0));
+          setVisibleCount(Math.min(12, data.length || 0));
         }
       } catch (e: any) {
         if (abort.signal.aborted) return;
@@ -105,7 +114,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
       isMounted = false;
       abort.abort();
     };
-  }, [city.city, city.state]);
+  }, [city.city, city.state, cityId]);
 
   // Attach scroll listener and recalc on mount/resize/content changes
   useEffect(() => {
@@ -141,7 +150,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
 
   // Reset visible count on posts change
   useEffect(() => {
-    if (posts) setVisibleCount(Math.min(30, posts.length));
+    if (posts) setVisibleCount(Math.min(12, posts.length));
   }, [posts]);
 
   // IntersectionObserver sentinel to load more when near bottom
@@ -154,7 +163,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            setVisibleCount((c) => Math.min(posts?.length || 0, c + 30));
+            setVisibleCount((c) => Math.min(posts?.length || 0, c + 18));
           }
         }
       },
@@ -533,6 +542,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                       <img
                         src={src}
                         alt={title}
+                        loading="lazy"
                         style={{
                           position: "absolute",
                           inset: 0,
@@ -615,7 +625,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
             >
               <button
                 onClick={() =>
-                  setVisibleCount((c) => Math.min(posts?.length || 0, c + 30))
+                  setVisibleCount((c) => Math.min(posts?.length || 0, c + 18))
                 }
                 style={{
                   appearance: "none",
@@ -676,9 +686,9 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                       (c) => c.city === city.city && c.state === city.state
                     );
                     if (!match) throw new Error("City not found");
-                    const data = await fetchCityPosts(match.id);
+                    const data = await fetchCityPosts(cityId ?? match.id);
                     setPosts(data);
-                    setVisibleCount(Math.min(30, data.length || 0));
+                    setVisibleCount(Math.min(12, data.length || 0));
                     setError(null);
                   } catch (e: any) {
                     setError(e?.message || "Failed to load posts");
