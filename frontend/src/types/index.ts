@@ -32,7 +32,6 @@ export interface City {
 }
 
 export interface JourneyCity {
-  id?: number;
   city: string;
   state: string;
   lat: number;
