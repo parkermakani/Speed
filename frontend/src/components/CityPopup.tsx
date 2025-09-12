@@ -30,6 +30,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState<number>(30);
+  const [imgErrors, setImgErrors] = useState<Record<number, boolean>>({});
 
   // Scroll shadow indicators for the posts grid
   const gridRef = useRef<HTMLDivElement>(null);
@@ -520,7 +521,7 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                     color: "inherit",
                   }}
                 >
-                  {src ? (
+                  {src && !imgErrors[i] ? (
                     <div
                       style={{
                         position: "relative",
@@ -533,6 +534,9 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                       <img
                         src={src}
                         alt={title}
+                        onError={() =>
+                          setImgErrors((m) => ({ ...m, [i]: true }))
+                        }
                         style={{
                           position: "absolute",
                           inset: 0,
@@ -541,6 +545,25 @@ export const CityPopup: React.FC<CityPopupProps> = ({
                           objectFit: "cover",
                         }}
                       />
+                    </div>
+                  ) : src && imgErrors[i] ? (
+                    <div
+                      style={{
+                        width: "100%",
+                        aspectRatio: "3 / 4",
+                        background: "var(--color-border)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--color-text-secondary)",
+                        fontSize: "0.5rem",
+                        textAlign: "center",
+                        padding: "0 var(--space-2)",
+                        borderRadius: 0,
+                      }}
+                      title={title}
+                    >
+                      Image expired, click to view
                     </div>
                   ) : isTwitter ? (
                     <div

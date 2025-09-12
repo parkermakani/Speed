@@ -5,11 +5,18 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 from firebase_admin import App as FirebaseApp, credentials, initialize_app
 from firebase_admin import storage  # type: ignore
 
 firebase_app: FirebaseApp | None = None
+
+# Ensure .env variables are loaded for scripts and non-Uvicorn contexts as well
+try:
+    load_dotenv()
+except Exception:
+    pass
 
 
 def init_firebase() -> FirebaseApp:

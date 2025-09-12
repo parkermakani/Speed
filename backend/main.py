@@ -745,6 +745,7 @@ async def manual_scrape(
     """Trigger social scrape for a specific city and return number of posts saved."""
     from backend.social_scraper import (
         scrape_curator_posts,
+        cache_media_for_posts,
     )
     city_doc = repo.get_city(city_id)
     if not city_doc:
@@ -764,6 +765,11 @@ async def manual_scrape(
     import logging as _logging
     _logging.getLogger(__name__).info("Manual scrape start: city_id=%s ignoreTime=%s noCap=%s", city_id, ignoreTime, noCap)
     posts = await scrape_curator_posts(city_doc, settings, ignore_time=bool(ignoreTime), no_cap=bool(noCap))  # type: ignore
+    # Cache media in Firebase Storage and rewrite URLs before saving
+    try:
+        posts = await cache_media_for_posts(city_id, posts)
+    except Exception:
+        pass
     # Initialize cap regardless of fetch result to avoid UnboundLocalError
     cap_value = None if noCap else 100
     if posts:
@@ -797,7 +803,7 @@ async def scrape_all_posts(
     This ignores city_id and always disables caps when saving/repartitioning.
     """
     import logging as _logging
-    from backend.social_scraper import scrape_curator_posts
+    from backend.social_scraper import scrape_curator_posts, cache_media_for_posts
     settings = repo.get_settings()
     cities = repo.list_cities()
     if not cities:
@@ -806,6 +812,14 @@ async def scrape_all_posts(
     city_doc = cities[0]
     _logging.getLogger(__name__).info("Scrape-all start: cities=%s ignoreTime=%s", len(cities), ignoreTime)
     posts = await scrape_curator_posts(city_doc, settings, ignore_time=bool(ignoreTime), no_cap=True)  # type: ignore
+    # Cache media for all fetched posts (city_id is current or placeholder for storage path)
+    try:
+        # Use current city's id for storage path; if none, fall back to first city's id
+        target_city_id = (current.get("id") if (current := next((c for c in cities if c.get("isCurrent")), None)) else cities[0]["id"]) if cities else 0
+        if target_city_id:
+            posts = await cache_media_for_posts(int(target_city_id), posts)
+    except Exception:
+        pass
     if posts:
         # Save into current city to get them into Firestore, then repartition without cap
         current = next((c for c in cities if c.get("isCurrent")), cities[0])

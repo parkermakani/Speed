@@ -11,6 +11,8 @@ import os
 import logging
 from datetime import datetime, timezone
 from typing import Any, List
+import asyncio
+import hashlib
 import httpx
 
 
@@ -121,6 +123,276 @@ def _to_iso_utc(value: Any) -> str | None:
         from datetime import timezone as _tz
         dt = dt.astimezone(_tz.utc).replace(tzinfo=None)
     return dt.isoformat() + "Z"
+
+
+# ------------------ Media caching to Firebase Storage ------------------
+
+async def cache_media_for_posts(city_id: int, posts: List[dict[str, Any]]) -> List[dict[str, Any]]:
+    """Download media/avatar URLs for posts, upload to Firebase Storage, and rewrite URLs.
+
+    - Skips URLs that already point to Firebase/Google storage.
+    - Best-effort; on any failure, leaves the original URL intact.
+    - Limits concurrency to avoid overwhelming upstream CDNs and our egress.
+    """
+    try:
+        from backend.firebase import get_bucket
+        import httpx as _httpx
+    except Exception:
+        # If Firebase not configured, return posts unchanged
+        return posts
+
+    bucket = None
+    try:
+        bucket = get_bucket()
+    except Exception:
+        bucket = None
+    if not bucket:
+        logger.info("[MediaCache] bucket unavailable; skipping caching (city_id=%s)", city_id)
+        return posts
+
+    def _already_cached(url: Any) -> bool:
+        try:
+            s = str(url or "")
+        except Exception:
+            return False
+        s = s.lower()
+        return (
+            "firebasestorage.googleapis.com" in s
+            or ".appspot.com" in s
+            or "storage.googleapis.com" in s
+        )
+
+    def _ext_for_content_type(ct: str) -> str:
+        ct = (ct or "").lower()
+        if "image/jpeg" in ct or "/jpg" in ct:
+            return ".jpg"
+        if "image/png" in ct:
+            return ".png"
+        if "image/webp" in ct:
+            return ".webp"
+        if "image/gif" in ct:
+            return ".gif"
+        if "video/mp4" in ct or "mp4" in ct:
+            return ".mp4"
+        return ""
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ),
+        # Accept images and common video types; fallback */*
+        "Accept": "image/avif,image/webp,image/apng,image/*,video/*,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+    def _best_referer_and_origin_for(url: str) -> tuple[str | None, str | None]:
+        try:
+            from urllib.parse import urlparse
+            host = urlparse(url).netloc.lower()
+        except Exception:
+            return None, None
+        def any_in(s: str, needles: list[str]) -> bool:
+            return any(n in s for n in needles)
+        if any_in(host, ["tiktokcdn.com", "tiktok.com"]):
+            return "https://www.tiktok.com/", "https://www.tiktok.com"
+        if any_in(host, ["instagram.com", "cdninstagram.com", "fbcdn.net"]):
+            return "https://www.instagram.com/", "https://www.instagram.com"
+        if any_in(host, ["twimg.com", "twitter.com", "x.com"]):
+            return "https://twitter.com/", "https://twitter.com"
+        if any_in(host, ["youtube.com", "googlevideo.com", "ytimg.com"]):
+            return "https://www.youtube.com/", "https://www.youtube.com"
+        return None, None
+
+    def _redact_url(u: str) -> str:
+        try:
+            from urllib.parse import urlparse
+            p = urlparse(u)
+            # keep only last path segment; drop query/fragment
+            seg = (p.path.rsplit("/", 1)[-1] if p.path else "")
+            base = f"{p.scheme}://{p.netloc}"
+            return f"{base}/.../{seg}" if seg else base
+        except Exception:
+            return "(unparseable)"
+
+    def _host(u: str) -> str:
+        try:
+            from urllib.parse import urlparse
+            return urlparse(u).netloc.lower()
+        except Exception:
+            return "(unknown)"
+
+    def _pick_headers(h: Any) -> dict[str, str]:
+        try:
+            keys = [
+                "server",
+                "via",
+                "cf-ray",
+                "x-cache",
+                "x-cache-status",
+                "x-served-by",
+                "x-amz-cf-id",
+                "x-amz-id-2",
+                "age",
+                "date",
+                "content-type",
+            ]
+            out: dict[str, str] = {}
+            for k in keys:
+                v = h.get(k)
+                if v:
+                    out[k] = v
+            return out
+        except Exception:
+            return {}
+
+    sem = asyncio.Semaphore(6)
+
+    async def _download_and_store(url: str, key: str) -> tuple[str | None, int | None]:
+        # key indicates logical name (e.g., media, image, avatar)
+        if not url:
+            return url, None
+        if _already_cached(url):
+            logger.debug("[MediaCache] hit (already cached) key=%s", key)
+            return url, None
+        try:
+            # Parse origin for referer best-effort
+            # Build initial headers
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                origin = f"{parsed.scheme}://{parsed.netloc}"
+            except Exception:
+                origin = None
+            local_headers = dict(headers)
+            if origin:
+                local_headers["Referer"] = origin
+                local_headers["Origin"] = origin
+            # First attempt
+            async with sem:
+                async with _httpx.AsyncClient(timeout=20, follow_redirects=True, headers=local_headers) as client:
+                    resp = await client.get(url)
+            # If forbidden, retry with site-level referer/origin overrides (anti-hotlink bypass)
+            if resp.status_code == 403:
+                try:
+                    logger.warning(
+                        "[MediaCache] 403 first attempt host=%s key=%s url=%s hdrs=%s hist=%s rheaders=%s",
+                        _host(url),
+                        key,
+                        _redact_url(url),
+                        {k: v for k, v in local_headers.items() if k in ("Referer", "Origin", "User-Agent")},
+                        [f"{h.status_code}:{_redact_url(str(h.request.url))}" for h in (resp.history or [])],
+                        _pick_headers(resp.headers),
+                    )
+                except Exception:
+                    pass
+                alt_ref, alt_origin = _best_referer_and_origin_for(url)
+                if alt_ref or alt_origin:
+                    rh = dict(headers)
+                    if alt_ref:
+                        rh["Referer"] = alt_ref
+                    if alt_origin:
+                        rh["Origin"] = alt_origin
+                    async with sem:
+                        async with _httpx.AsyncClient(timeout=20, follow_redirects=True, headers=rh) as client:
+                            resp = await client.get(url)
+                    try:
+                        if resp.status_code == 403:
+                            logger.warning(
+                                "[MediaCache] 403 after retry host=%s key=%s url=%s hdrs=%s hist=%s rheaders=%s",
+                                _host(url),
+                                key,
+                                _redact_url(url),
+                                {k: v for k, v in rh.items() if k in ("Referer", "Origin", "User-Agent")},
+                                [f"{h.status_code}:{_redact_url(str(h.request.url))}" for h in (resp.history or [])],
+                                _pick_headers(resp.headers),
+                            )
+                    except Exception:
+                        pass
+            if resp.status_code >= 400:
+                try:
+                    logger.warning(
+                        "[MediaCache] download failed status=%s host=%s key=%s url=%s rheaders=%s",
+                        resp.status_code,
+                        _host(url),
+                        key,
+                        _redact_url(url),
+                        _pick_headers(resp.headers),
+                    )
+                except Exception:
+                    logger.warning("[MediaCache] download failed status=%s key=%s", resp.status_code, key)
+                return None, resp.status_code
+            content = resp.content
+            ct = resp.headers.get("content-type", "application/octet-stream")
+            ext = _ext_for_content_type(ct)
+            # Build stable path using post key hash + city id
+            sha = hashlib.sha1()
+            sha.update((url or "").encode("utf-8", errors="ignore"))
+            digest = sha.hexdigest()[:16]
+            path = f"cities/{city_id}/posts/{digest}/{key}{ext}"
+            blob = bucket.blob(path)
+            try:
+                blob.upload_from_string(content, content_type=ct)
+            except Exception:
+                logger.exception("[MediaCache] upload error key=%s path=%s", key, path)
+                return None, None
+            try:
+                blob.make_public()
+                public_url = blob.public_url
+                logger.info("[MediaCache] stored key=%s path=%s size=%sB", key, path, len(content))
+                return public_url, None
+            except Exception:
+                try:
+                    from datetime import timedelta as _td
+                    signed = blob.generate_signed_url(expiration=_td(days=365))
+                    logger.info("[MediaCache] stored (signed) key=%s path=%s size=%sB", key, path, len(content))
+                    return signed, None
+                except Exception:
+                    logger.exception("[MediaCache] make_public and sign failed key=%s path=%s", key, path)
+                    return None, None
+        except Exception:
+            logger.exception("[MediaCache] exception during fetch/store key=%s", key)
+            return None, None
+
+    async def _process_post(post: dict[str, Any]) -> dict[str, Any]:
+        out = dict(post)
+        try:
+            media_url = post.get("mediaUrl") or post.get("imageUrl")
+            avatar_url = post.get("avatarUrl")
+            # Cache media
+            if media_url:
+                new_media, status = await _download_and_store(str(media_url), "media")
+                if status == 404:
+                    # Drop this post entirely on 404 media
+                    logger.info("[MediaCache] dropping post due to 404 media")
+                    return None
+                if new_media:
+                    out["mediaUrl"] = new_media
+                    # Keep imageUrl in sync if original used that field
+                    if "imageUrl" in out:
+                        out["imageUrl"] = new_media
+            # Cache avatar
+            if avatar_url:
+                new_avatar, _ = await _download_and_store(str(avatar_url), "avatar")
+                if new_avatar:
+                    out["avatarUrl"] = new_avatar
+        except Exception:
+            return out
+        return out
+
+    # Process with limited concurrency
+    tasks = [asyncio.create_task(_process_post(p)) for p in posts]
+    results: List[dict[str, Any]] = []
+    for t in tasks:
+        try:
+            processed = await t
+            if processed is not None:
+                results.append(processed)
+        except Exception:
+            # If any task fails, keep original corresponding post
+            idx = tasks.index(t)
+            results.append(posts[idx])
+    return results
 
 
 # ------------------ Platform functions ------------------

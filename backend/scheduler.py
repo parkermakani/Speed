@@ -42,6 +42,11 @@ async def scrape_current_city_job():
         logger.info("Curator not configured; skipping scrape job")
         return
     posts = await social_scraper.scrape_curator_posts(current, settings)  # type: ignore
+    # Cache media in Firebase Storage and rewrite URLs prior to saving
+    try:
+        posts = await social_scraper.cache_media_for_posts(int(current.get("id") or 0), posts)  # type: ignore
+    except Exception:
+        pass
     if posts:
         repo.save_city_posts(current["id"], posts)
         # After saving, repartition across cities so window assignment happens centrally
