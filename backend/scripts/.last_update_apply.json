@@ -1,0 +1,75 @@
+{
+  "countExisting": 34,
+  "countPlanned": 37,
+  "changes": [
+    {
+      "city": "Baton Rouge",
+      "state": "Louisiana",
+      "order": 17,
+      "lat": 30.4515,
+      "lng": -91.1871
+    },
+    {
+      "city": "Oklahoma City",
+      "state": "Oklahoma",
+      "order": 23,
+      "lat": 35.4676,
+      "lng": -97.5164
+    },
+    {
+      "city": "Wichita",
+      "state": "Kansas",
+      "order": 24,
+      "lat": 37.6872,
+      "lng": -97.3301
+    },
+    {
+      "order": 25
+    },
+    {
+      "order": 26
+    },
+    {
+      "order": 27
+    },
+    {
+      "city": "Salt Lake City",
+      "state": "Utah",
+      "order": 28,
+      "lat": 40.7608,
+      "lng": -111.891
+    },
+    {
+      "order": 29
+    },
+    {
+      "order": 30
+    },
+    {
+      "order": 31
+    },
+    {
+      "order": 32
+    },
+    {
+      "order": 33
+    },
+    {
+      "order": 34
+    },
+    {
+      "city": "Albuquerque",
+      "state": "New Mexico",
+      "order": 35,
+      "lat": 35.0844,
+      "lng": -106.6504
+    },
+    {
+      "order": 36
+    },
+    {
+      "order": 37
+    }
+  ],
+  "applied": true
+}

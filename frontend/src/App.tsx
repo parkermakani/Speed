@@ -19,6 +19,7 @@ import { useTips } from "./components/TipSystem";
 import { useCart } from "./hooks/useCart";
 import { CartPanel } from "./components/CartPanel";
 import { useMediaQuery } from "./hooks/useMediaQuery";
+import { Footer } from "./components/Footer";
 
 const SHOW_ADMIN_BTN = false;
 
@@ -298,7 +299,7 @@ function App() {
         {/* Removed sleep overlay per user request */}
       </div>
 
-      {/* Footer removed per request */}
+      <Footer />
 
       {/* Shop UI */}
       {!settings.disableMerch && (
