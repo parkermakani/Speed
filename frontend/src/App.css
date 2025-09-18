@@ -1,3 +1,7 @@
+:root {
+  --footer-h: 56px;
+}
+
 .app {
   min-height: 100vh;
   display: flex;
@@ -6,7 +10,8 @@
   color: var(--color-text);
   font-family: var(--font-sans);
   position: relative; /* allow absolute header positioning */
-  overflow: hidden; /* prevent extra scroll height from overlay header */
+  overflow-x: hidden;
+  overflow-y: auto; /* allow footer to be reachable */
 }
 
 .app.loading,
@@ -92,7 +97,7 @@
 
 .map-container {
   flex: none;
-  height: 100vh;
+  height: calc(100vh - var(--footer-h));
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -188,12 +193,15 @@
   color: var(--color-text);
   border-top: 1px solid var(--color-border);
   box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.05);
+  position: sticky;
+  bottom: 0;
 }
 
 .site-footer__inner {
   max-width: 1200px;
   margin: 0 auto;
   padding: var(--space-3) var(--space-5);
+  min-height: var(--footer-h);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -207,4 +215,10 @@
 
 .site-footer__sep {
   opacity: 0.5;
+}
+
+.site-footer__logo {
+  height: 28px;
+  width: auto;
+  object-fit: contain;
 }
