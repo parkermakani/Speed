@@ -10,12 +10,6 @@ export const Footer: React.FC = () => {
           alt="People Watching"
           className="site-footer__logo"
         />
-        <span className="site-footer__sep" aria-hidden>
-          •
-        </span>
-        <span className="site-footer__text">
-          © {new Date().getFullYear()} Speed Does America
-        </span>
       </div>
     </footer>
   );

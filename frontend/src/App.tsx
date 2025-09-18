@@ -299,7 +299,23 @@ function App() {
         {/* Removed sleep overlay per user request */}
       </div>
 
-      <Footer />
+      {/* Bottom overlay footer */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          display: "flex",
+          justifyContent: "center",
+          zIndex: 1500,
+          pointerEvents: "none",
+        }}
+      >
+        <div style={{ pointerEvents: "auto", width: "100%" }}>
+          <Footer />
+        </div>
+      </div>
 
       {/* Shop UI */}
       {!settings.disableMerch && (
