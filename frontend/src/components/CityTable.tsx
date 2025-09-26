@@ -30,7 +30,14 @@ export const CityTable: React.FC<CityTableProps> = ({ onChange }) => {
   const loadCities = async () => {
     try {
       const data = await fetchCities();
-      setCities(data);
+      // Hide cities that are removed/hidden (lat/lng == 0 or order == 0)
+      const filtered = data.filter((c) => {
+        const zeroLatLng =
+          Math.abs(c.lat || 0) < 1e-6 && Math.abs(c.lng || 0) < 1e-6;
+        const zeroOrder = (c.order || 0) === 0;
+        return !(zeroLatLng || zeroOrder);
+      });
+      setCities(filtered);
     } catch (e) {
       if (e instanceof ApiError) {
         setError(e.message);

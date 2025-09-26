@@ -61,7 +61,6 @@ SCHEDULE_ORDER: List[Tuple[str, str]] = [
     ("Boise", "Idaho"),
     ("Seattle", "Washington"),
     ("Portland", "Oregon"),
-    ("Medford", "Oregon"),
     ("San Francisco", "California"),
     # Lake Tahoe removed from route
     ("Las Vegas", "Nevada"),
@@ -158,6 +157,7 @@ def apply_changes(changes: List[Dict[str, Any]]) -> None:
 
 HIDE_CITIES: List[Tuple[str, str]] = [
     ("Lake Tahoe", "California"),
+    ("Medford", "Oregon"),
 ]
 
 
