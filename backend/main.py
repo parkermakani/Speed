@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Query, APIRouter
+from fastapi import FastAPI, HTTPException, Depends, Query, APIRouter, Request
 from fastapi import UploadFile, File
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
@@ -403,12 +403,134 @@ async def scheduler_status_root():
     except Exception:
         return {"enabled": False}
 
+# -------------------- Tour Endpoints --------------------
+
+
+@api.get("/tours")
+async def list_tours():
+    """List all available tours."""
+    tours = repo.list_tours()
+    return [
+        {
+            "id": t["id"],
+            "name": t.get("name"),
+            "slug": t.get("slug"),
+            "hashtag": t.get("hashtag"),
+            "quote": t.get("quote"),
+            "isActive": t.get("isActive", False),
+            "isComingSoon": t.get("isComingSoon", True),
+            "centerLat": t.get("centerLat", 0),
+            "centerLng": t.get("centerLng", 0),
+            "defaultZoom": t.get("defaultZoom", 4),
+            "colorTheme": t.get("colorTheme", "america"),
+            "logoUrl": t.get("logoUrl"),
+            "logoMobileUrl": t.get("logoMobileUrl"),
+            "displayOrder": t.get("displayOrder", 0),
+            "endDate": t.get("endDate"),
+        }
+        for t in tours
+    ]
+
+
+@api.get("/tours/{tour_id}")
+async def get_tour(tour_id: str):
+    """Get a specific tour by ID."""
+    tour = repo.get_tour(tour_id)
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+    return {
+        "id": tour["id"],
+        "name": tour.get("name"),
+        "slug": tour.get("slug"),
+        "hashtag": tour.get("hashtag"),
+        "quote": tour.get("quote"),
+        "isActive": tour.get("isActive", False),
+        "isComingSoon": tour.get("isComingSoon", True),
+        "centerLat": tour.get("centerLat", 0),
+        "centerLng": tour.get("centerLng", 0),
+        "defaultZoom": tour.get("defaultZoom", 4),
+        "colorTheme": tour.get("colorTheme", "america"),
+        "logoUrl": tour.get("logoUrl"),
+        "logoMobileUrl": tour.get("logoMobileUrl"),
+        "displayOrder": tour.get("displayOrder", 0),
+        "endDate": tour.get("endDate"),
+    }
+
+
+@api.patch("/tours/{tour_id}")
+async def update_tour(tour_id: str, request: Request, current_admin=Depends(get_current_admin)):
+    """Update a tour's settings (requires authentication)."""
+    tour = repo.get_tour(tour_id)
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+
+    body = await request.json()
+    updated = repo.update_tour(tour_id, body)
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update tour")
+
+    return {
+        "id": updated["id"],
+        "name": updated.get("name"),
+        "slug": updated.get("slug"),
+        "hashtag": updated.get("hashtag"),
+        "quote": updated.get("quote"),
+        "isActive": updated.get("isActive", False),
+        "isComingSoon": updated.get("isComingSoon", True),
+        "centerLat": updated.get("centerLat", 0),
+        "centerLng": updated.get("centerLng", 0),
+        "defaultZoom": updated.get("defaultZoom", 4),
+        "colorTheme": updated.get("colorTheme", "america"),
+        "logoUrl": updated.get("logoUrl"),
+        "logoMobileUrl": updated.get("logoMobileUrl"),
+        "displayOrder": updated.get("displayOrder", 0),
+        "endDate": updated.get("endDate"),
+    }
+
+
+@api.get("/tours/{tour_id}/cities")
+async def get_tour_cities(tour_id: str):
+    """Get cities for a specific tour."""
+    tour = repo.get_tour(tour_id)
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+
+    docs = repo.list_cities_for_tour(tour_id)
+    return [
+        {
+            "id": d["id"],
+            "city": d["city"],
+            "state": d.get("state", ""),
+            "lat": d.get("lat", 0.0),
+            "lng": d.get("lng", 0.0),
+            "order": d.get("order", 0),
+            "is_current": d.get("isCurrent", False),
+            "lastCurrentAt": d.get("lastCurrentAt"),
+            "keywords": d.get("keywords"),
+            "locatorIconUrl": d.get("locatorIconUrl"),
+            "locatorPng": d.get("locatorPng"),
+        }
+        for d in docs
+        if d.get("city")
+    ]
+
+
+@api.get("/tours/{tour_id}/journey")
+async def get_tour_journey(tour_id: str):
+    """Get journey data for a specific tour."""
+    tour = repo.get_tour(tour_id)
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+    return repo.compute_journey_for_tour(tour_id)
+
+
 # -------------------- City & Journey Endpoints --------------------
 
 
 @api.get("/cities")
-async def list_cities():
-    docs = repo.list_cities()
+async def list_cities(tour_id: Optional[str] = Query(default=None)):
+    """List cities for a tour (defaults to America for backwards compatibility)."""
+    docs = repo.list_cities(tour_id=tour_id)
     result = []
     for d in docs:
         if not d.get("city"):
@@ -499,8 +621,9 @@ async def update_city(
 
 
 @api.get("/journey")
-async def get_journey():
-    return repo.compute_journey()
+async def get_journey(tour_id: Optional[str] = Query(default=None)):
+    """Get journey data for a tour (defaults to America for backwards compatibility)."""
+    return repo.compute_journey(tour_id=tour_id)
 
 # -------------------- City locator icon upload --------------------
 

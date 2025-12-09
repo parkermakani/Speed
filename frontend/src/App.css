@@ -71,26 +71,26 @@
 }
 
 .chromatic-base {
-  font-family: "hwt-american-solid", var(--font-sans);
+  font-family: var(--font-chromatic-base, "hwt-american-solid"), var(--font-sans);
   color: var(--color-star-white);
   position: relative;
   z-index: 1;
 }
 
 .chromatic-inset {
-  font-family: "hwt-american-inset", var(--font-sans);
+  font-family: var(--font-chromatic-inset, "hwt-american-inset"), var(--font-sans);
   color: var(--color-primary);
   z-index: 3;
 }
 
 .chromatic-stars-bottom {
-  font-family: "hwt-american-stars-bottom", var(--font-sans);
+  font-family: var(--font-chromatic-stars, "hwt-american-stars-bottom"), var(--font-sans);
   color: var(--color-star-white);
   z-index: 4;
 }
 
 .chromatic-outline {
-  font-family: "hwt-american-outline", var(--font-sans);
+  font-family: var(--font-chromatic-outline, "hwt-american-outline"), var(--font-sans);
   color: var(--color-text-border);
   z-index: 2;
 }

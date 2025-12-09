@@ -20,11 +20,13 @@ import { useCart } from "./hooks/useCart";
 import { CartPanel } from "./components/CartPanel";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import { Footer } from "./components/Footer";
+import { useTour } from "./contexts/TourContext";
 
 const SHOW_ADMIN_BTN = false;
 
-function App() {
+function AppContent() {
   const tips = useTips();
+  const { activeTour } = useTour();
   const [status, setStatus] = useState<Status | null>(null);
   const [journey, setJourney] = useState<JourneyResponse | null>(null);
   const [sleep, setSleep] = useState<SleepResponse | null>(null);
@@ -226,38 +228,40 @@ function App() {
           </Button>
         </div>
       )}
-      {/* Help tip trigger */}
-      <div
-        style={{
-          position: "fixed",
-          top: "var(--space-4)",
-          left: "var(--space-4)",
-          zIndex: !isDesktop && shopOpen ? 1400 : 2000,
-        }}
-      >
-        <button
-          type="button"
-          aria-label="Help"
-          data-tip-target="help"
-          onClick={() => {
-            tips.start();
-          }}
+      {/* Help tip trigger - only show on America tour */}
+      {activeTour.id === 'america' && (
+        <div
           style={{
-            width: "100%",
-            height: "100%",
-            background: "transparent",
-            border: "none",
-            outline: "none",
-            boxShadow: "none",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
+            position: "fixed",
+            top: "var(--space-4)",
+            left: "var(--space-4)",
+            zIndex: !isDesktop && shopOpen ? 1400 : 2000,
           }}
         >
-          <Icon name="question-mark" size={28} preserveColors />
-        </button>
-      </div>
+          <button
+            type="button"
+            aria-label="Help"
+            data-tip-target="help"
+            onClick={() => {
+              tips.start();
+            }}
+            style={{
+              width: "100%",
+              height: "100%",
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              boxShadow: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            <Icon name="question-mark" size={28} preserveColors />
+          </button>
+        </div>
+      )}
       {/* Overlay stack: header + quote */}
       <div
         style={{
@@ -272,7 +276,7 @@ function App() {
         }}
       >
         <Header />
-        <Quote quote={status.quote} />
+        <Quote quote={status.quote || activeTour.defaultQuote} />
       </div>
 
       <div className="map-container">
@@ -293,6 +297,7 @@ function App() {
           isSleep={sleep.isSleep}
           isTraveling={!!sleep.isTraveling}
           currentCity={journey.currentCity || null}
+          nextCity={journey.nextCity || null}
           showMarker={showMarker}
         />
 
@@ -410,6 +415,10 @@ function App() {
       )}
     </div>
   );
+}
+
+function App() {
+  return <AppContent />;
 }
 
 export default App;

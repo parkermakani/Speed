@@ -7,6 +7,7 @@ import SleepScreen from "./pages/SleepScreen";
 import { TipProvider } from "./components/TipSystem";
 import AdminRoot from "./AdminRoot";
 import { CartProvider } from "./hooks/useCart";
+import { TourProvider } from "./contexts/TourContext";
 
 const path = window.location.pathname;
 
@@ -18,10 +19,12 @@ const RootComponent = path.startsWith("/admin")
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <TipProvider>
-      <CartProvider>
-        <RootComponent />
-      </CartProvider>
-    </TipProvider>
+    <TourProvider>
+      <TipProvider>
+        <CartProvider>
+          <RootComponent />
+        </CartProvider>
+      </TipProvider>
+    </TourProvider>
   </StrictMode>
 );

@@ -1,5 +1,23 @@
 /* Design Tokens - CSS Variables */
-:root {
+
+/* ========================================
+   CUSTOM FONTS
+   ======================================== */
+
+/* Africa theme font - Tribeca */
+@font-face {
+  font-family: 'Tribeca';
+  src: url('/fonts/Tribeca.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ========================================
+   THEME: America (default)
+   ======================================== */
+:root,
+[data-theme="america"] {
   /* American Theme Colors */
   --color-liberty-blue: #0A3161;
   --color-liberty-blue-dark: #092a52;
@@ -24,7 +42,7 @@
 
   --color-land: #DEC29B;
   --color-land-dark: #6d5e4a;
-  
+
   /* Updated Color Mappings */
   --color-bg: var(--color-liberty-blue);
   --color-bg-elevated: rgba(10, 49, 97, 0.8);
@@ -33,26 +51,146 @@
   --color-surface-hover: rgba(75, 75, 75, 0.2);
   --color-border: var(--color-steel-gray);
   --color-border-focus: var(--color-sky-stripe);
-  
+
   --color-text: var(--color-star-white);
   --color-text-secondary: rgba(255, 255, 255, 0.8);
   --color-text-muted: var(--color-steel-gray);
   --color-text-inverse: var(--color-liberty-blue);
   --color-text-border: var(--color-liberty-blue-dark);
-  
+
   --color-primary: var(--color-freedom-red);
   --color-primary-50: var(--color-freedom-red-50);
   --color-primary-hover: rgba(179, 25, 66, 0.8);
   --color-primary-light: rgba(179, 25, 66, 0.3);
   --color-primary-dark: rgba(179, 25, 66, 0.9);
-  
+
   --color-accent: var(--color-sky-stripe);
   --color-accent-hover: rgba(60, 141, 255, 0.8);
-  
+
   --color-success: #48bb78;
   --color-warning: var(--color-vintage-gold);
   --color-error: var(--color-freedom-red);
-  
+
+  /* American theme display font */
+  --font-display: 'hwt-american-solid', var(--font-sans);
+
+  /* Quote animation shadow colors */
+  --quote-shadow-color: rgba(179, 25, 66, 0);
+  --quote-shadow-color-active: rgba(179, 25, 66, 0.6);
+
+  /* Coming Soon overlay styling */
+  --coming-soon-bg: rgba(10, 49, 97, 0.85);
+  --coming-soon-shadow: 0 8px 32px rgba(179, 25, 66, 0.4);
+  --coming-soon-border: 2px solid rgba(179, 25, 66, 0.5);
+
+  /* Title sizing */
+  --title-font-size: clamp(32px, 5vw, 56px)
+  --title-font-size-mobile: clamp(24px, 6vw, 36px)
+}
+
+/* ========================================
+   THEME: Africa
+   ======================================== */
+[data-theme="africa"],
+[data-theme="africa"] * {
+  /* African Theme Font */
+  --font-sans: 'Tribeca', system-ui, sans-serif;
+  --font-display: 'Tribeca', system-ui, sans-serif;
+  --font-chromatic-base: 'Tribeca';
+  --font-chromatic-inset: 'Tribeca';
+  --font-chromatic-stars: 'Tribeca';
+  --font-chromatic-outline: 'Tribeca';
+
+  /* Title sizing - larger for Tribeca font */
+  --title-font-size: clamp(42px, 6vw, 72px);
+  --title-font-size-mobile: clamp(28px, 7vw, 44px);
+
+  /* Quote animation shadow colors - African flag green */
+  --quote-shadow-color: rgba(0, 154, 68, 0);
+  --quote-shadow-color-active: rgba(0, 154, 68, 0.6);
+
+  /* Coming Soon overlay styling - earthy/safari with green accent */
+  --coming-soon-bg: rgba(139, 69, 19, 0.85);
+  --coming-soon-shadow: 0 8px 32px rgba(0, 154, 68, 0.5);
+  --coming-soon-border: 2px solid rgba(212, 168, 71, 0.6);
+}
+
+[data-theme="africa"] {
+  font-family: 'Tribeca', system-ui, sans-serif;
+
+  /* African Theme Colors - Earthy/Safari Palette */
+  --color-savanna-gold: #D4A847;
+  --color-acacia-brown: #8B4513;
+  --color-sunset-orange: #E25822;
+  --color-safari-tan: #D2B48C;
+  --color-baobab-green: #556B2F;
+  --color-kente-purple: #6B3FA0;
+  --color-serengeti-dust: #C4A35A;
+  --color-kilimanjaro-white: #F5F5DC;
+
+  /* Opacity variants */
+  --color-acacia-brown-70: #8b4513b1;
+  --color-acacia-brown-50: #8b451380;
+  --color-acacia-brown-30: #8b45134d;
+  --color-acacia-brown-10: #8b45131a;
+  --color-sunset-orange-70: #e25822b1;
+  --color-sunset-orange-50: #e2582280;
+  --color-sunset-orange-30: #e258224d;
+  --color-sunset-orange-10: #e258221a;
+  --color-safari-tan-70: #d2b48cb1;
+  --color-safari-tan-50: #d2b48c80;
+  --color-safari-tan-30: #d2b48c4d;
+  --color-safari-tan-10: #d2b48c1a;
+
+  --color-land: var(--color-savanna-gold);
+  --color-land-dark: var(--color-acacia-brown);
+
+  /* Color Mappings for Africa theme */
+  --color-bg: var(--color-acacia-brown);
+  --color-bg-elevated: rgba(139, 69, 19, 0.85);
+  --color-bg-overlay: rgba(139, 69, 19, 0.95);
+  --color-surface: rgba(210, 180, 140, 0.15);
+  --color-surface-hover: rgba(210, 180, 140, 0.25);
+  --color-border: var(--color-serengeti-dust);
+  --color-border-focus: var(--color-sunset-orange);
+
+  --color-text: var(--color-kilimanjaro-white);
+  --color-text-secondary: rgba(245, 245, 220, 0.85);
+  --color-text-muted: var(--color-safari-tan);
+  --color-text-inverse: var(--color-acacia-brown);
+  --color-text-border: #5a3410;
+
+  --color-primary: var(--color-sunset-orange);
+  --color-primary-50: var(--color-sunset-orange-50);
+  --color-primary-hover: rgba(226, 88, 34, 0.85);
+  --color-primary-light: rgba(226, 88, 34, 0.35);
+  --color-primary-dark: rgba(226, 88, 34, 0.95);
+
+  --color-accent: var(--color-savanna-gold);
+  --color-accent-hover: rgba(212, 168, 71, 0.85);
+
+  --color-success: var(--color-baobab-green);
+  --color-warning: var(--color-savanna-gold);
+  --color-error: var(--color-sunset-orange);
+
+  /* Remap American theme vars for backwards compatibility */
+  --color-liberty-blue: var(--color-acacia-brown);
+  --color-liberty-blue-dark: #5a3410;
+  --color-freedom-red: var(--color-sunset-orange);
+  --color-star-white: var(--color-kilimanjaro-white);
+  --color-steel-gray: var(--color-safari-tan);
+  --color-sky-stripe: var(--color-savanna-gold);
+  --color-vintage-gold: var(--color-kente-purple);
+
+  /* African theme display font (placeholder - user will provide custom fonts) */
+  --font-display: var(--font-african-display, var(--font-sans));
+  --font-african-display: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ========================================
+   Shared Design Tokens (all themes)
+   ======================================== */
+:root {
   /* Spacing Scale */
   --space-0: 0;
   --space-1: 0.25rem;  /* 4px */

@@ -435,6 +435,58 @@ export async function runScrapeAll(
   return data && typeof data.saved === "number" ? data.saved : 0;
 }
 
+// ---------------- Tours ----------------
+
+export interface Tour {
+  id: string;
+  name: string;
+  slug: string;
+  hashtag?: string;
+  quote?: string;
+  isActive: boolean;
+  isComingSoon: boolean;
+  centerLat: number;
+  centerLng: number;
+  defaultZoom: number;
+  colorTheme: string;
+  logoUrl?: string;
+  logoMobileUrl?: string;
+  displayOrder: number;
+  endDate?: string | null;  // ISO timestamp for tour end date
+}
+
+export async function fetchTours(): Promise<Tour[]> {
+  const res = await fetch(`${API_BASE_URL}/api/tours`);
+  if (!res.ok) throw new ApiError(res.status, "Failed to fetch tours");
+  return await res.json();
+}
+
+export async function fetchTour(tourId: string): Promise<Tour> {
+  const res = await fetch(`${API_BASE_URL}/api/tours/${tourId}`);
+  if (!res.ok) throw new ApiError(res.status, "Failed to fetch tour");
+  return await res.json();
+}
+
+export async function updateTour(
+  tourId: string,
+  payload: Partial<Tour>,
+  token: string
+): Promise<Tour> {
+  const res = await fetch(`${API_BASE_URL}/api/tours/${tourId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new ApiError(res.status, err.detail || "Failed to update tour");
+  }
+  return await res.json();
+}
+
 // ---------------- Settings ----------------
 
 export async function fetchSettings(): Promise<Settings> {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import AnimatedMotorcycle from "./AnimatedMotorcycle";
@@ -10,6 +10,48 @@ import type { JourneyCity } from "../types";
 import { CityPopup } from "./CityPopup";
 import { Drawer } from "./primitives/Drawer";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useTour } from "../contexts/TourContext";
+import { TOURS } from "../config/tours";
+
+// GeoJSON URL for world countries
+const COUNTRIES_GEOJSON_URL = 'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson';
+
+// African country names for filtering
+const AFRICAN_COUNTRY_NAMES = new Set([
+  'Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cabo Verde',
+  'Cameroon', 'Central African Republic', 'Chad', 'Comoros', 'Democratic Republic of the Congo',
+  'Republic of the Congo', 'Republic of Congo', "Côte d'Ivoire", "Cote d'Ivoire", 'Ivory Coast',
+  'Djibouti', 'Egypt', 'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Swaziland', 'Ethiopia',
+  'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Kenya', 'Lesotho', 'Liberia',
+  'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique',
+  'Namibia', 'Niger', 'Nigeria', 'Rwanda', 'São Tomé and Príncipe', 'Sao Tome and Principe',
+  'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa', 'South Sudan', 'Sudan',
+  'Tanzania', 'United Republic of Tanzania', 'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe',
+  'Western Sahara', 'Congo'
+]);
+
+// Cache for Africa GeoJSON
+let africaGeoJson: any | null = null;
+const ensureAfricaGeoJson = async () => {
+  if (africaGeoJson) return africaGeoJson;
+  try {
+    const res = await fetch(COUNTRIES_GEOJSON_URL);
+    const allCountries = await res.json();
+    // Filter to only African countries
+    africaGeoJson = {
+      type: 'FeatureCollection',
+      features: allCountries.features.filter((f: any) => {
+        const name = f.properties?.ADMIN || f.properties?.name || '';
+        return AFRICAN_COUNTRY_NAMES.has(name);
+      })
+    };
+    console.log('[Map] Loaded Africa GeoJSON with', africaGeoJson.features.length, 'countries');
+    return africaGeoJson;
+  } catch (e) {
+    console.error('[Map] Failed to load Africa GeoJSON:', e);
+    return null;
+  }
+};
 
 interface FlatMapProps {
   lat: number;
@@ -23,8 +65,12 @@ interface FlatMapProps {
   isTraveling?: boolean;
   /** Current city metadata for popup when clicking the animated marker */
   currentCity?: JourneyCity | null;
+  /** Next city in the journey (used to determine when current city window ends) */
+  nextCity?: JourneyCity | null;
   /** Controls visibility of animated marker (hide before departure) */
   showMarker?: boolean;
+  /** Callback when map center changes (for auto-detecting tour) */
+  onMapCenterChange?: (lat: number, lng: number) => void;
 }
 
 // Mapbox token
@@ -64,11 +110,16 @@ function FlatMapInner({
   isSleep = false,
   isTraveling = false,
   currentCity = null,
+  nextCity = null,
   showMarker = true,
+  onMapCenterChange,
 }: FlatMapProps) {
   const [selectedCity, setSelectedCity] = useState<JourneyCity | null>(null);
   const isMobile = useMediaQuery("(max-width: 767px)");
-  const initialZoom = isMobile ? 3 : 4; // start more zoomed out on mobile
+  const { activeTour, checkAndSwitchTour } = useTour();
+  const initialZoom = isMobile
+    ? activeTour.defaultZoom - 1
+    : activeTour.defaultZoom;
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
@@ -83,6 +134,72 @@ function FlatMapInner({
   // Departing city locator marker during traveling
   const departingMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const departingImgRef = useRef<HTMLImageElement | null>(null);
+  // Track previous tour ID to detect changes
+  const prevTourIdRef = useRef<string>(activeTour.id);
+  // Pulse interval for Africa "coming soon" countries
+  const africaPulseRef = useRef<number | null>(null);
+
+  // Determine if we should highlight the current state/country
+  // State should NOT be highlighted if we've passed the next city's start time (meaning Speed has left)
+  // For the LAST city, use the tour's endDate instead
+  const shouldHighlightState = useMemo(() => {
+    // If no state provided, nothing to highlight
+    if (!state) return false;
+
+    const now = new Date();
+
+    // If there's a next city, use its start time as the end of current city's window
+    if (nextCity?.lastCurrentAt) {
+      try {
+        const nextCityStart = new Date(nextCity.lastCurrentAt);
+
+        // If current time is BEFORE next city's start, Speed is still in current state
+        const shouldHighlight = now < nextCityStart;
+
+        console.debug("[StateHighlight] shouldHighlightState decision (has nextCity)", {
+          state,
+          nextCityStartIso: nextCity.lastCurrentAt,
+          nowIso: now.toISOString(),
+          shouldHighlight,
+        });
+
+        return shouldHighlight;
+      } catch {
+        // If parsing fails, default to showing highlight
+        return true;
+      }
+    }
+
+    // No next city - this is the LAST city
+    // Use the tour's endDate to determine when to stop highlighting
+    if (activeTour.endDate) {
+      try {
+        const tourEndDate = new Date(activeTour.endDate);
+
+        // If current time is BEFORE tour end date, keep highlighting
+        const shouldHighlight = now < tourEndDate;
+
+        console.debug("[StateHighlight] shouldHighlightState decision (last city, using tour endDate)", {
+          state,
+          tourEndDateIso: activeTour.endDate,
+          nowIso: now.toISOString(),
+          shouldHighlight,
+        });
+
+        return shouldHighlight;
+      } catch {
+        // If parsing fails, default to showing highlight
+        return true;
+      }
+    }
+
+    // No next city and no tour endDate - keep highlighting indefinitely (fallback)
+    console.debug("[StateHighlight] shouldHighlightState decision (last city, no endDate)", {
+      state,
+      shouldHighlight: true,
+    });
+    return true;
+  }, [state, nextCity?.lastCurrentAt, activeTour.endDate]);
 
   // Safely unmount the React root for the animated marker outside of React's render tick
   const safeUnmountMarkerRoot = () => {
@@ -99,18 +216,29 @@ function FlatMapInner({
     }
   };
 
-  const addStateLayers = async (stateName: string) => {
+  // Add region highlight layers - works for both US states (America) and countries (Africa)
+  const addRegionLayers = async (regionName: string) => {
     if (!mapRef.current) return;
     if (!mapRef.current.isStyleLoaded()) {
-      mapRef.current.once("styledata", () => addStateLayers(stateName));
+      mapRef.current.once("styledata", () => addRegionLayers(regionName));
       return;
     }
-    const sourceId = "states-geo-src";
-    const borderId = "state-border";
-    const highlightId = "state-highlight";
 
-    const geojson = await ensureStates();
-    // add all states source once
+    const isAfrica = activeTour.id === 'africa';
+    const sourceId = isAfrica ? "africa-countries-src" : "states-geo-src";
+    const borderId = isAfrica ? "country-border" : "state-border";
+    const highlightId = isAfrica ? "country-highlight" : "state-highlight";
+    // Property name differs: US states use "name", Africa GeoJSON uses "ADMIN"
+    const propertyName = isAfrica ? "ADMIN" : "name";
+
+    // Get fresh color from CSS (important when tour/theme changes)
+    const primaryColor = getCSSVariable("--color-primary") || "#B31942";
+
+    // Load appropriate GeoJSON
+    const geojson = isAfrica ? await ensureAfricaGeoJson() : await ensureStates();
+    if (!geojson) return;
+
+    // Add source if not present
     if (!mapRef.current.getSource(sourceId)) {
       mapRef.current.addSource(sourceId, {
         type: "geojson",
@@ -118,53 +246,140 @@ function FlatMapInner({
       });
     }
 
-    // highlight selected state
-    const stateFilter = ["==", ["get", "name"], stateName];
+    // Filter for the selected region
+    const regionFilter = ["==", ["get", propertyName], regionName];
 
-    if (!mapRef.current.getLayer(highlightId)) {
-      mapRef.current.addLayer({
-        id: highlightId,
-        type: "fill",
-        source: sourceId,
-        paint: {
-          "fill-color": getCSSVariable("--color-primary") || "#B31942",
-          "fill-opacity": 0.2,
-        },
-        filter: stateFilter,
-      });
+    // Clear any previous pulse interval
+    // @ts-ignore
+    if (mapRef.current._pulseId) clearInterval(mapRef.current._pulseId);
 
-      // pulse
-      let up = true;
-      // clear any previous pulse interval stored on map object
-      // @ts-ignore
-      if (mapRef.current._pulseId) clearInterval(mapRef.current._pulseId);
-
-      // store new interval id on map instance so we can clear later
-      // @ts-ignore
-      mapRef.current._pulseId = setInterval(() => {
-        const m = mapRef.current;
-        if (!m) return;
-        const hasLayer = m.getLayer && m.getLayer(highlightId);
-        if (hasLayer) {
-          m.setPaintProperty(highlightId, "fill-opacity", up ? 0.35 : 0.15);
-          up = !up;
-        }
-      }, 1000);
-    } else {
-      mapRef.current.setFilter(highlightId, stateFilter as any);
+    // Remove old layers from the OTHER tour to avoid color conflicts
+    const otherHighlightId = isAfrica ? "state-highlight" : "country-highlight";
+    const otherBorderId = isAfrica ? "state-border" : "country-border";
+    if (mapRef.current.getLayer(otherHighlightId)) {
+      mapRef.current.removeLayer(otherHighlightId);
+    }
+    if (mapRef.current.getLayer(otherBorderId)) {
+      mapRef.current.removeLayer(otherBorderId);
     }
 
-    if (!mapRef.current.getLayer(borderId)) {
-      mapRef.current.addLayer({
-        id: borderId,
-        type: "line",
+    // Remove and recreate current tour layers to ensure fresh colors
+    if (mapRef.current.getLayer(highlightId)) {
+      mapRef.current.removeLayer(highlightId);
+    }
+    if (mapRef.current.getLayer(borderId)) {
+      mapRef.current.removeLayer(borderId);
+    }
+
+    // Create highlight layer with fresh color
+    mapRef.current.addLayer({
+      id: highlightId,
+      type: "fill",
+      source: sourceId,
+      paint: {
+        "fill-color": primaryColor,
+        "fill-opacity": 0.2,
+      },
+      filter: regionFilter,
+    });
+
+    // Pulse animation
+    let up = true;
+    // @ts-ignore
+    mapRef.current._pulseId = setInterval(() => {
+      const m = mapRef.current;
+      if (!m) return;
+      const hasLayer = m.getLayer && m.getLayer(highlightId);
+      if (hasLayer) {
+        m.setPaintProperty(highlightId, "fill-opacity", up ? 0.35 : 0.15);
+        up = !up;
+      }
+    }, 1000);
+
+    // Create border layer with fresh color
+    mapRef.current.addLayer({
+      id: borderId,
+      type: "line",
+      source: sourceId,
+      paint: {
+        "line-color": primaryColor,
+        "line-width": 3,
+      },
+      filter: regionFilter,
+    });
+  };
+
+  // Add base color layer for all African countries (pulses when "coming soon")
+  const addAfricaBaseLayers = async () => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    const sourceId = 'africa-countries-src';
+    const layerId = 'africa-countries-base';
+    const usaTanColor = getCSSVariable('--color-land') || '#DEC29B'; // USA tan (active/highlighted)
+    const defaultTanColor = '#C4B59A'; // Darker tan (what all non-US countries have in the base style)
+
+    // Clear any existing pulse interval for base layer
+    if (africaPulseRef.current) {
+      clearInterval(africaPulseRef.current);
+      africaPulseRef.current = null;
+    }
+
+    // Remove existing layer if present
+    if (map.getLayer(layerId)) {
+      map.removeLayer(layerId);
+    }
+
+    // Load Africa GeoJSON
+    const africaGeo = await ensureAfricaGeoJson();
+    if (!africaGeo) {
+      console.warn('[Map] Could not load Africa GeoJSON');
+      return;
+    }
+
+    // Add or update source
+    if (!map.getSource(sourceId)) {
+      map.addSource(sourceId, {
+        type: 'geojson',
+        data: africaGeo,
+      });
+    }
+
+    // Find the first non-background layer to insert our fill behind everything
+    const layers = map.getStyle()?.layers || [];
+    let firstLayerId: string | undefined;
+    for (const layer of layers) {
+      if ((layer as any).type !== 'background') {
+        firstLayerId = (layer as any).id;
+        break;
+      }
+    }
+
+    // Add fill layer for African countries at the bottom of the layer stack
+    try {
+      map.addLayer({
+        id: layerId,
+        type: 'fill',
         source: sourceId,
         paint: {
-          "line-color": getCSSVariable("--color-primary") || "#B31942",
-          "line-width": 3,
+          'fill-color': TOURS.africa.isComingSoon ? defaultTanColor : usaTanColor,
+          'fill-opacity': 1,
         },
-        filter: stateFilter,
-      });
+      }, firstLayerId); // Insert at the bottom (before the first non-background layer)
+      console.log('[Map] Added Africa base layer at bottom, before:', firstLayerId);
+    } catch (e1) {
+      console.error('[Map] Failed to add Africa base layer:', e1);
+    }
+
+    // If Africa is "coming soon", pulse all countries between darker tan and USA tan
+    if (TOURS.africa.isComingSoon && map.getLayer(layerId)) {
+      let showHighlighted = false;
+      africaPulseRef.current = window.setInterval(() => {
+        if (!map.getLayer(layerId)) return;
+        const color = showHighlighted ? usaTanColor : defaultTanColor;
+        map.setPaintProperty(layerId, 'fill-color', color);
+        showHighlighted = !showHighlighted;
+      }, 800);
     }
   };
 
@@ -341,6 +556,10 @@ function FlatMapInner({
     }
 
     const sourceId = "journey-src";
+    const layerId = "journey-path";
+
+    // Get fresh color from CSS (important when tour/theme changes)
+    const primaryColor = getCSSVariable("--color-primary") || "#B31942";
 
     const coordinates = path
       .map((p) => [p.lng, p.lat])
@@ -364,13 +583,18 @@ function FlatMapInner({
       );
     }
 
-    if (path.length > 0 && !map.getLayer("journey-path")) {
+    // Remove and recreate layer to ensure fresh color when tour changes
+    if (map.getLayer(layerId)) {
+      map.removeLayer(layerId);
+    }
+
+    if (path.length > 0) {
       map.addLayer({
-        id: "journey-path",
+        id: layerId,
         type: "line",
         source: sourceId,
         paint: {
-          "line-color": getCSSVariable("--color-primary") || "#B31942",
+          "line-color": primaryColor,
           "line-width": 4,
           "line-dasharray": [2, 1],
         },
@@ -387,6 +611,15 @@ function FlatMapInner({
     })
   ) as string[];
 
+  // Mobile zoom threshold: below this zoom level, show dots instead of icons
+  const MOBILE_DOT_ZOOM_THRESHOLD = 3;
+  const DOT_SIZE = 12; // Size of simple dot markers
+
+  // Track whether we're currently showing dots (for mobile zoom-out)
+  const showingDotsRef = useRef<boolean>(false);
+  // Store city data with markers for re-rendering
+  const pastCitiesDataRef = useRef<typeof pastCities>([]);
+
   // Compute icon size based on current zoom level
   const getIconSizeForZoom = (zoom: number) => {
     const minSize = 40; // smaller when zoomed out
@@ -397,21 +630,42 @@ function FlatMapInner({
     return Math.round(minSize + (maxSize - minSize) * t);
   };
 
-  // Resize all past city icons on zoom
+  // Check if we should show dots (mobile + zoomed out)
+  const shouldShowDots = (zoom: number) => {
+    return isMobile && zoom < MOBILE_DOT_ZOOM_THRESHOLD;
+  };
+
+  // Resize all past city icons on zoom (and switch between dots/icons on mobile)
   const updatePastIconSizes = () => {
     const map = mapRef.current;
     if (!map || pastMarkersRef.current.length === 0) return;
-    const size = getIconSizeForZoom(map.getZoom());
+
+    const zoom = map.getZoom();
+    const needDots = shouldShowDots(zoom);
+
+    // If we need to switch between dots and icons, re-render markers
+    if (needDots !== showingDotsRef.current) {
+      renderPastMarkers();
+      return;
+    }
+
+    // Just resize existing markers
+    if (needDots) {
+      // Dots stay the same size
+      return;
+    }
+
+    const size = getIconSizeForZoom(zoom);
     pastMarkersRef.current.forEach((mk) => {
-      const el = mk.getElement() as HTMLImageElement;
-      if (el) {
-        el.style.width = `${size}px`;
-        el.style.height = `${size}px`;
+      const el = mk.getElement() as HTMLElement;
+      if (el && el.tagName === 'IMG') {
+        (el as HTMLImageElement).style.width = `${size}px`;
+        (el as HTMLImageElement).style.height = `${size}px`;
       }
     });
     // Also resize departing marker icon if present
     if (departingImgRef.current) {
-      const dsize = getIconSizeForZoom(map.getZoom());
+      const dsize = getIconSizeForZoom(zoom);
       departingImgRef.current.style.width = `${dsize}px`;
       departingImgRef.current.style.height = `${dsize}px`;
     }
@@ -421,24 +675,49 @@ function FlatMapInner({
     const map = mapRef.current;
     if (!map || pastCities.length === 0) return;
 
+    // Store cities data for potential re-renders
+    pastCitiesDataRef.current = pastCities;
+
     // Clear existing markers
     pastMarkersRef.current.forEach((m) => m.remove());
     pastMarkersRef.current = [];
 
+    const zoom = map.getZoom();
+    const useDots = shouldShowDots(zoom);
+    showingDotsRef.current = useDots;
+
     pastCities.forEach((pt) => {
-      const initialSize = getIconSizeForZoom(map.getZoom());
-      const img = document.createElement("img");
-      const custom =
-        (pt as any).locatorIconUrl || (pt as any).locatorPng || null;
-      img.src = custom || allIcons[Math.floor(Math.random() * allIcons.length)];
-      img.style.width = `${initialSize}px`;
-      img.style.height = `${initialSize}px`;
-      img.style.cursor = "pointer";
-      img.style.pointerEvents = "auto";
-      // Keep past markers below the current animated marker
-      // Keep past markers below animated marker
-      img.style.zIndex = "80";
-      img.addEventListener("click", (e) => {
+      let element: HTMLElement;
+
+      if (useDots) {
+        // Create simple dot element for mobile zoomed-out view
+        const dot = document.createElement("div");
+        dot.style.width = `${DOT_SIZE}px`;
+        dot.style.height = `${DOT_SIZE}px`;
+        dot.style.borderRadius = "50%";
+        dot.style.backgroundColor = getCSSVariable("--color-primary") || "#B31942";
+        dot.style.border = "2px solid white";
+        dot.style.boxShadow = "0 1px 3px rgba(0,0,0,0.3)";
+        dot.style.cursor = "pointer";
+        dot.style.pointerEvents = "auto";
+        dot.style.zIndex = "80";
+        element = dot;
+      } else {
+        // Create full icon element
+        const initialSize = getIconSizeForZoom(zoom);
+        const img = document.createElement("img");
+        const custom =
+          (pt as any).locatorIconUrl || (pt as any).locatorPng || null;
+        img.src = custom || allIcons[Math.floor(Math.random() * allIcons.length)];
+        img.style.width = `${initialSize}px`;
+        img.style.height = `${initialSize}px`;
+        img.style.cursor = "pointer";
+        img.style.pointerEvents = "auto";
+        img.style.zIndex = "80";
+        element = img;
+      }
+
+      element.addEventListener("click", (e) => {
         e.stopPropagation();
         setSelectedCity({
           city: (pt as any).city ?? "Unknown",
@@ -447,14 +726,12 @@ function FlatMapInner({
           lng: pt.lng,
         });
       });
-      const mk = new mapboxgl.Marker({ element: img, anchor: "center" })
+
+      const mk = new mapboxgl.Marker({ element, anchor: "center" })
         .setLngLat([pt.lng, pt.lat])
         .addTo(map);
       pastMarkersRef.current.push(mk);
     });
-
-    // Ensure sizes are correct right after rendering (in case zoom changed)
-    updatePastIconSizes();
   };
 
   // scaling removed – icons fixed size
@@ -498,18 +775,21 @@ function FlatMapInner({
     }
 
     // Immediately constrain view
-    // Allow a bit more zoom-out on mobile and keep very loose pan bounds
-    mapRef.current.setMinZoom(isMobile ? 3 : 4.0);
+    // Allow more zoom-out to frame full continents during tour transitions
+    mapRef.current.setMinZoom(isMobile ? 2 : 2.5);
     mapRef.current.setMaxBounds(panBounds as any);
 
     mapRef.current.on("load", () => {
       // ensure we remain centered on current city once style has loaded
       mapRef.current!.jumpTo({ center: [lng, lat], zoom: initialZoom });
-      // Keep previous minZoom (1.0) so user can zoom out a bit
+
+      // Add Africa base layer (tan color for all African countries, pulses when "coming soon")
+      addAfricaBaseLayers();
 
       if (!HIDE) {
-        // draw USA polygons and highlight state only when not hiding
-        addStateLayers(state || "");
+        // Draw region polygons and highlight current state/country
+        // Only highlight if shouldHighlightState is true (we haven't passed the end time)
+        addRegionLayers(shouldHighlightState ? (state || "") : "");
         addMarker();
         drawPath();
         renderPastMarkers();
@@ -537,6 +817,8 @@ function FlatMapInner({
       // clear pulse interval if present
       // @ts-ignore
       if (mapRef.current?._pulseId) clearInterval(mapRef.current._pulseId);
+      // clear Africa pulse interval
+      if (africaPulseRef.current) clearInterval(africaPulseRef.current);
       // remove zoom listener
       mapRef.current?.off("zoom", updatePastIconSizes);
       mapRef.current?.off("zoom", updateMarkerSize);
@@ -550,12 +832,63 @@ function FlatMapInner({
   useEffect(() => {
     if (!mapRef.current) return;
     if (HIDE) return;
-    addMarker();
-    addStateLayers(state || "");
-    drawPath();
-    renderPastMarkers();
-    updatePastIconSizes();
-  }, [lat, lng, state, path, pastCities, isSleep, showMarker]);
+
+    // Use requestAnimationFrame to ensure CSS variables have updated after theme change
+    // This is necessary because the data-theme attribute change and CSS recomputation
+    // might not be complete when this effect runs
+    requestAnimationFrame(() => {
+      if (!mapRef.current) return;
+      addMarker();
+      // Only highlight if shouldHighlightState is true (we haven't passed the end time)
+      addRegionLayers(shouldHighlightState ? (state || "") : "");
+      drawPath();
+      renderPastMarkers();
+      updatePastIconSizes();
+    });
+  }, [lat, lng, state, path, pastCities, isSleep, showMarker, activeTour.id, activeTour.theme, shouldHighlightState]);
+
+  // FlyTo when tour changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (prevTourIdRef.current === activeTour.id) return;
+
+    // Tour changed - fit bounds to frame the entire region
+    prevTourIdRef.current = activeTour.id;
+
+    // Use fitBounds to frame the entire country/continent
+    const { bounds } = activeTour;
+    const padding = isMobile ? 40 : 60;
+
+    map.fitBounds(
+      [
+        [bounds.west, bounds.south], // Southwest corner
+        [bounds.east, bounds.north], // Northeast corner
+      ],
+      {
+        padding: { top: padding + 80, bottom: padding + 60, left: padding, right: padding }, // Extra top padding for header
+        duration: 2000,
+        essential: true,
+      }
+    );
+  }, [activeTour.id, activeTour.bounds, isMobile]);
+
+  // Auto-detect tour based on map center when user pans
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const handleMoveEnd = () => {
+      const center = map.getCenter();
+      checkAndSwitchTour(center.lat, center.lng);
+      onMapCenterChange?.(center.lat, center.lng);
+    };
+
+    map.on("moveend", handleMoveEnd);
+    return () => {
+      map.off("moveend", handleMoveEnd);
+    };
+  }, [checkAndSwitchTour, onMapCenterChange]);
 
   // Manage Mapbox Popup on desktop
   useEffect(() => {
@@ -670,6 +1003,10 @@ function FlatMapInner({
 
     const sourceId = "travel-progress-src";
     const layerId = "travel-progress-line";
+
+    // Get fresh color from CSS (important when tour/theme changes)
+    const primaryColor = getCSSVariable("--color-primary") || "#B31942";
+
     const data = {
       type: "Feature",
       geometry: { type: "LineString", coordinates },
@@ -680,39 +1017,39 @@ function FlatMapInner({
     } else {
       (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(data as any);
     }
-    if (!map.getLayer(layerId)) {
-      map.addLayer({
-        id: layerId,
-        type: "line",
-        source: sourceId,
-        paint: {
-          "line-color": getCSSVariable("--color-primary") || "#B31942",
-          "line-width": 5,
-          "line-opacity": 0.85,
-          "line-dasharray": [2, 1],
-        },
-      });
-      // Pulse animation for travel progress line
-      try {
-        // @ts-ignore
-        if ((map as any)._travelPulseId)
-          clearInterval((map as any)._travelPulseId);
-      } catch {}
-      let up = true;
-      // @ts-ignore
-      (map as any)._travelPulseId = setInterval(() => {
-        try {
-          const m = mapRef.current;
-          if (!m || !m.getLayer(layerId)) return;
-          m.setPaintProperty(layerId, "line-opacity", up ? 0.35 : 0.9);
-          up = !up;
-        } catch {}
-      }, 900);
-    } else {
-      try {
-        map.setPaintProperty(layerId, "line-dasharray", [2, 1] as any);
-      } catch {}
+
+    // Remove and recreate layer to ensure fresh color when tour changes
+    if (map.getLayer(layerId)) {
+      map.removeLayer(layerId);
     }
+
+    map.addLayer({
+      id: layerId,
+      type: "line",
+      source: sourceId,
+      paint: {
+        "line-color": primaryColor,
+        "line-width": 5,
+        "line-opacity": 0.85,
+        "line-dasharray": [2, 1],
+      },
+    });
+    // Pulse animation for travel progress line
+    try {
+      // @ts-ignore
+      if ((map as any)._travelPulseId)
+        clearInterval((map as any)._travelPulseId);
+    } catch {}
+    let up = true;
+    // @ts-ignore
+    (map as any)._travelPulseId = setInterval(() => {
+      try {
+        const m = mapRef.current;
+        if (!m || !m.getLayer(layerId)) return;
+        m.setPaintProperty(layerId, "line-opacity", up ? 0.35 : 0.9);
+        up = !up;
+      } catch {}
+    }, 900);
 
     // Render departing locator icon at origin
     if (!departingMarkerRef.current) {
@@ -814,6 +1151,43 @@ function FlatMapInner({
           Loading map...
         </div>
       )}
+      {/* Coming Soon overlay for tours without cities */}
+      {activeTour.isComingSoon && !loading && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
+            zIndex: 15,
+          }}
+        >
+          <div
+            style={{
+              background: "var(--coming-soon-bg, rgba(0, 0, 0, 0.6))",
+              backdropFilter: "blur(4px)",
+              padding: isMobile ? "16px 24px" : "24px 48px",
+              borderRadius: "12px",
+              boxShadow: "var(--coming-soon-shadow, 0 8px 32px rgba(0,0,0,0.3))",
+              border: "var(--coming-soon-border, none)",
+            }}
+          >
+            <span
+              style={{
+                fontSize: isMobile ? "var(--title-font-size-mobile)" : "var(--title-font-size)",
+                fontWeight: 700,
+                color: "var(--color-text)",
+                textShadow: "2px 2px 4px rgba(0,0,0,0.5)",
+                fontFamily: "var(--font-display)",
+              }}
+            >
+              {activeTour.name} Coming Soon
+            </span>
+          </div>
+        </div>
+      )}
       {/* Mobile full-screen popup */}
       <Drawer
         isOpen={isMobile && !!selectedCity}
@@ -836,17 +1210,4 @@ function FlatMapInner({
   );
 }
 
-export const FlatMap = React.memo(FlatMapInner, (prev, next) => {
-  // Prevent re-render during drawer drag by shallow-comparing key props
-  if (
-    prev.lat === next.lat &&
-    prev.lng === next.lng &&
-    prev.state === next.state &&
-    prev.isSleep === next.isSleep &&
-    prev.pastCities === next.pastCities &&
-    prev.path === next.path
-  ) {
-    return true;
-  }
-  return false;
-});
+export const FlatMap = React.memo(FlatMapInner);

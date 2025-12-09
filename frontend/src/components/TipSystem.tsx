@@ -11,6 +11,7 @@ import type { TipStep } from "../types";
 import { tipsConfig } from "../tips/tipsConfig";
 import { SpotlightOverlay } from "./SpotlightOverlay";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useTour } from "../contexts/TourContext";
 
 interface TipContextValue {
   start: () => void;
@@ -41,6 +42,11 @@ export const TipProvider: React.FC<{ children: React.ReactNode }> = ({
   const nudgeTimerRef = useRef<number | null>(null);
   const nudgeHideTimerRef = useRef<number | null>(null);
   const nudgeHideEndTimerRef = useRef<number | null>(null);
+
+  // Only show tips on America tour
+  const { activeTour } = useTour();
+  const isAmericaTour = activeTour.id === 'america';
+
   const [debug, setDebug] = useState<boolean>(() => {
     try {
       const fromLs = localStorage.getItem("tips_debug");
@@ -670,67 +676,72 @@ export const TipProvider: React.FC<{ children: React.ReactNode }> = ({
   return (
     <TipContext.Provider value={value}>
       {children}
-      {/* Subtle nudge: show Tip0 without dimming, pass-through, auto-hides */}
-      {mounted && nudgeVisible && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            pointerEvents: "none",
-            zIndex: 4000,
-          }}
-        >
-          {(() => {
-            const tip0 = steps.find((s) => s.id === "Tip0");
-            if (!tip0) return null;
-            return (
+      {/* Only show tips on America tour */}
+      {isAmericaTour && (
+        <>
+          {/* Subtle nudge: show Tip0 without dimming, pass-through, auto-hides */}
+          {mounted && nudgeVisible && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                pointerEvents: "none",
+                zIndex: 4000,
+              }}
+            >
+              {(() => {
+                const tip0 = steps.find((s) => s.id === "Tip0");
+                if (!tip0) return null;
+                return (
+                  <TipImageAnchor
+                    imageUrl={tip0.imageUrl}
+                    targetSelector={
+                      typeof tip0.target === "string" ? tip0.target : ""
+                    }
+                    placement={getEffectivePlacement(tip0)}
+                    debug={debug}
+                    passThrough
+                    stepId={tip0.id}
+                    exiting={nudgeExiting}
+                  />
+                );
+              })()}
+            </div>
+          )}
+          {mounted && current && targetReady && (
+            <SpotlightOverlay
+              target={
+                typeof current.target === "string"
+                  ? current.target
+                  : current.target?.current ?? null
+              }
+              onBackdropClick={() => {
+                if (current.continueMode === "tapAnywhere") next();
+              }}
+              captureAllClicks={current.continueMode === "tapAnywhere"}
+              zIndex={5000}
+            >
               <TipImageAnchor
-                imageUrl={tip0.imageUrl}
+                imageUrl={current.imageUrl}
                 targetSelector={
-                  typeof tip0.target === "string" ? tip0.target : ""
+                  typeof current.target === "string" ? current.target : ""
                 }
-                placement={getEffectivePlacement(tip0)}
+                placement={getEffectivePlacement(current)}
+                stepId={current.id}
                 debug={debug}
-                passThrough
-                stepId={tip0.id}
-                exiting={nudgeExiting}
-              />
-            );
-          })()}
-        </div>
-      )}
-      {mounted && current && targetReady && (
-        <SpotlightOverlay
-          target={
-            typeof current.target === "string"
-              ? current.target
-              : current.target?.current ?? null
-          }
-          onBackdropClick={() => {
-            if (current.continueMode === "tapAnywhere") next();
-          }}
-          captureAllClicks={current.continueMode === "tapAnywhere"}
-          zIndex={5000}
-        >
-          <TipImageAnchor
-            imageUrl={current.imageUrl}
-            targetSelector={
-              typeof current.target === "string" ? current.target : ""
-            }
-            placement={getEffectivePlacement(current)}
-            stepId={current.id}
-            debug={debug}
-            passThrough={
-              current.continueMode === "clickTarget" ||
-              current.continueMode === "waitCondition"
-            }
-            isLast={index === steps.length - 1}
-            exiting={isExitingStep}
-            onClick={() => {
-              if (current.continueMode === "tapAnywhere") next();
-            }}
-          ></TipImageAnchor>
-        </SpotlightOverlay>
+                passThrough={
+                  current.continueMode === "clickTarget" ||
+                  current.continueMode === "waitCondition"
+                }
+                isLast={index === steps.length - 1}
+                exiting={isExitingStep}
+                onClick={() => {
+                  if (current.continueMode === "tapAnywhere") next();
+                }}
+              ></TipImageAnchor>
+            </SpotlightOverlay>
+          )}
+        </>
       )}
     </TipContext.Provider>
   );

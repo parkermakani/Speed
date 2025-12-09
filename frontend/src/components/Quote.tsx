@@ -17,7 +17,7 @@ export const Quote: React.FC<QuoteProps> = ({
   quoted = true,
   withShadow = false,
 }) => {
-  // Inject a stronger wave animation
+  // Inject a stronger wave animation using CSS variable for shadow color
   useEffect(() => {
     if (typeof document === "undefined") return;
     const id = "_quote_anim_styles";
@@ -26,12 +26,12 @@ export const Quote: React.FC<QuoteProps> = ({
       styleEl.id = id;
       styleEl.innerHTML = `
         @keyframes quote-wave-strong {
-          0% { transform: translateY(0) rotate(0deg) skewX(0deg) scale(1); filter: drop-shadow(0 0 0 rgba(179,25,66,0)); }
-          20% { transform: translateY(-6px) rotate(2deg) skewX(3deg) scale(1.15); filter: drop-shadow(0 8px 18px rgba(179,25,66,0.6)); }
+          0% { transform: translateY(0) rotate(0deg) skewX(0deg) scale(1); filter: drop-shadow(0 0 0 var(--quote-shadow-color, rgba(179,25,66,0))); }
+          20% { transform: translateY(-6px) rotate(2deg) skewX(3deg) scale(1.15); filter: drop-shadow(0 8px 18px var(--quote-shadow-color-active, rgba(179,25,66,0.6))); }
           40% { transform: translateY(3px) rotate(-2deg) skewX(-2deg) scale(1.22); }
           60% { transform: translateY(-4px) rotate(1.4deg) skewX(2deg) scale(1.14); }
           80% { transform: translateY(2px) rotate(-1.2deg) skewX(-1.5deg) scale(1.08); }
-          100% { transform: translateY(0) rotate(0deg) skewX(0deg) scale(1); filter: drop-shadow(0 0 0 rgba(179,25,66,0)); }
+          100% { transform: translateY(0) rotate(0deg) skewX(0deg) scale(1); filter: drop-shadow(0 0 0 var(--quote-shadow-color, rgba(179,25,66,0))); }
         }
         .quote-anim-strong { transform-origin: 50% 80%; animation: quote-wave-strong var(--quote-anim-dur, 1800ms) ease-in-out 1 both; will-change: transform, filter; }
       `;

@@ -7,9 +7,12 @@ import { fetchCities, runScrape, runScrapeAll } from "../services/api";
 import { CityTable } from "../components/CityTable";
 import { AdminMerch } from "../components/AdminMerch";
 import type { Status, StatusUpdate } from "../types";
-import { fetchSettings, updateSettings } from "../services/api";
+import { fetchSettings, updateSettings, fetchTour, updateTour } from "../services/api";
+import type { Tour } from "../services/api";
 import { Input } from "../components/primitives/Input";
 import type { Settings } from "../types";
+import { TOURS, TOUR_ORDER } from "../config/tours";
+import type { TourConfig } from "../config/tours";
 
 interface AdminDashboardProps {
   onStatusUpdate?: (status: Status) => void;
@@ -20,6 +23,11 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
   const [currentStatus, setCurrentStatus] = useState<Status | null>(null);
   const [isSleep, setIsSleep] = useState(false);
   const [isTraveling, setIsTraveling] = useState(false);
+  const [selectedTourId, setSelectedTourId] = useState<string>("america");
+  const selectedTour: TourConfig = TOURS[selectedTourId] || TOURS.america;
+  const [tourData, setTourData] = useState<Tour | null>(null);
+  const [tourEndDate, setTourEndDate] = useState<string>("");
+  const [tourSaving, setTourSaving] = useState(false);
   const [formData, setFormData] = useState<StatusUpdate>({
     lat: 0,
     lng: 0,
@@ -60,6 +68,48 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
     loadSleep();
     loadSettingsFromServer();
   }, []);
+
+  // Load tour data when selected tour changes
+  useEffect(() => {
+    loadTourData(selectedTourId);
+  }, [selectedTourId]);
+
+  const loadTourData = async (tourId: string) => {
+    try {
+      const tour = await fetchTour(tourId);
+      setTourData(tour);
+      // Convert ISO date to datetime-local format for input
+      if (tour.endDate) {
+        const date = new Date(tour.endDate);
+        // Format as YYYY-MM-DDTHH:MM for datetime-local input
+        const localDateTime = date.toISOString().slice(0, 16);
+        setTourEndDate(localDateTime);
+      } else {
+        setTourEndDate("");
+      }
+    } catch (e) {
+      console.error("Failed to fetch tour data", e);
+      setTourData(null);
+      setTourEndDate("");
+    }
+  };
+
+  const handleSaveTourSettings = async () => {
+    if (!token || !selectedTourId) return;
+    setTourSaving(true);
+    try {
+      // Convert datetime-local to ISO string
+      const endDateIso = tourEndDate ? new Date(tourEndDate).toISOString() : null;
+      const updated = await updateTour(selectedTourId, { endDate: endDateIso }, token);
+      setTourData(updated);
+      alert("Tour settings saved");
+    } catch (e) {
+      console.error("Failed to save tour settings", e);
+      alert("Failed to save tour settings");
+    } finally {
+      setTourSaving(false);
+    }
+  };
 
   const loadSettingsFromServer = async () => {
     try {
@@ -253,6 +303,95 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
             <Button variant="ghost" onClick={handleLogout}>
               Logout
             </Button>
+          </Stack>
+        </Card>
+
+        {/* Tour Selector */}
+        <Card padding="md" style={{ boxShadow: "none" }}>
+          <Stack spacing="sm">
+            <Text size="lg" weight="medium">
+              Select Tour
+            </Text>
+            <Stack direction="row" spacing="sm" align="center">
+              <select
+                value={selectedTourId}
+                onChange={(e) => setSelectedTourId(e.target.value)}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--color-surface)",
+                  color: "var(--color-text)",
+                  fontSize: "var(--text-base)",
+                  cursor: "pointer",
+                  minWidth: "200px",
+                }}
+              >
+                {TOUR_ORDER.map((tourId) => {
+                  const tour = TOURS[tourId];
+                  return (
+                    <option key={tourId} value={tourId}>
+                      {tour.name} {tour.isComingSoon ? "(Coming Soon)" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+              {selectedTour.isComingSoon && (
+                <Text size="sm" color="muted" style={{ fontStyle: "italic" }}>
+                  This tour has no cities yet
+                </Text>
+              )}
+            </Stack>
+          </Stack>
+        </Card>
+
+        {/* Tour Settings */}
+        <Card padding="md" style={{ boxShadow: "none" }}>
+          <Stack spacing="sm">
+            <Text size="lg" weight="medium">
+              Tour Settings: {selectedTour.name}
+            </Text>
+            <FormField label="Tour End Date (when to stop highlighting the last state)">
+              <input
+                type="datetime-local"
+                value={tourEndDate}
+                onChange={(e) => setTourEndDate(e.target.value)}
+                style={{
+                  padding: "var(--space-3) var(--space-4)",
+                  fontSize: "var(--text-base)",
+                  fontFamily: "var(--font-sans)",
+                  backgroundColor: "var(--color-bg-elevated)",
+                  color: "var(--color-text)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-md)",
+                  maxWidth: "300px",
+                }}
+              />
+            </FormField>
+            {tourEndDate && (
+              <Text size="xs" color="muted">
+                State highlighting will stop after: {new Date(tourEndDate).toLocaleString()}
+              </Text>
+            )}
+            <Stack direction="row" spacing="sm">
+              <Button
+                variant="primary"
+                onClick={handleSaveTourSettings}
+                disabled={!token || tourSaving}
+                loading={tourSaving}
+              >
+                Save Tour Settings
+              </Button>
+              {tourEndDate && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setTourEndDate("")}
+                  disabled={tourSaving}
+                >
+                  Clear End Date
+                </Button>
+              )}
+            </Stack>
           </Stack>
         </Card>
 

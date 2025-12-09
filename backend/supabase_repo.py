@@ -13,6 +13,208 @@ import os
 from backend.supabase_client import get_supabase, get_client_id
 
 
+# ------------------ Tours ------------------
+
+
+def list_tours() -> List[dict[str, Any]]:
+    """List all tours ordered by displayOrder."""
+    client = get_supabase()
+    client_id = get_client_id()
+
+    result = (
+        client.from_("speed_tours")
+        .select("*")
+        .eq("clientId", client_id)
+        .order("displayOrder")
+        .execute()
+    )
+
+    return [dict(row) for row in result.data or []]
+
+
+def get_tour(tour_id: str) -> Optional[dict[str, Any]]:
+    """Get a single tour by ID."""
+    client = get_supabase()
+    client_id = get_client_id()
+
+    try:
+        result = (
+            client.from_("speed_tours")
+            .select("*")
+            .eq("clientId", client_id)
+            .eq("id", tour_id)
+            .execute()
+        )
+        if result and hasattr(result, 'data') and result.data:
+            return result.data[0] if isinstance(result.data, list) else result.data
+        return None
+    except Exception:
+        return None
+
+
+def get_active_tour() -> Optional[dict[str, Any]]:
+    """Get the currently active tour (from status.activeTourId)."""
+    status = get_status()
+    if not status:
+        return None
+    tour_id = status.get("activeTourId")
+    if tour_id:
+        return get_tour(tour_id)
+    # Default to first tour
+    tours = list_tours()
+    return tours[0] if tours else None
+
+
+def set_active_tour(tour_id: str) -> dict[str, Any]:
+    """Set the active tour in status."""
+    return update_status({"activeTourId": tour_id})
+
+
+def update_tour(tour_id: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Update a tour record."""
+    client = get_supabase()
+    client_id = get_client_id()
+
+    data["updatedAt"] = datetime.now(timezone.utc).isoformat()
+
+    # Remove fields that shouldn't be updated directly
+    safe_data = {k: v for k, v in data.items() if k not in ["id", "clientId", "createdAt"]}
+
+    client.from_("speed_tours").update(safe_data).eq("clientId", client_id).eq(
+        "id", tour_id
+    ).execute()
+
+    return get_tour(tour_id)
+
+
+def _get_cities_table_for_tour(tour_id: str) -> str:
+    """Get the cities table name for a specific tour."""
+    # Map tour IDs to their specific city tables
+    table_map = {
+        "america": "speed_cities_america",
+        "africa": "speed_cities_africa",
+    }
+    return table_map.get(tour_id, "speed_cities_america")
+
+
+def _get_posts_table_for_tour(tour_id: str) -> str:
+    """Get the posts table name for a specific tour."""
+    table_map = {
+        "america": "speed_posts",  # Legacy table for America
+        "africa": "speed_posts_africa",
+    }
+    return table_map.get(tour_id, "speed_posts")
+
+
+def list_cities_for_tour(tour_id: str) -> List[dict[str, Any]]:
+    """List all cities for a specific tour."""
+    client = get_supabase()
+    client_id = get_client_id()
+    table = _get_cities_table_for_tour(tour_id)
+
+    result = (
+        client.from_(table)
+        .select("*")
+        .eq("clientId", client_id)
+        .order("order")
+        .execute()
+    )
+
+    docs = []
+    for row in result.data or []:
+        doc = dict(row)
+        try:
+            doc["id"] = int(doc["id"])
+        except (ValueError, TypeError):
+            pass
+        docs.append(doc)
+    return docs
+
+
+def get_city_for_tour(tour_id: str, city_id: int) -> Optional[dict[str, Any]]:
+    """Get a single city by ID for a specific tour."""
+    client = get_supabase()
+    client_id = get_client_id()
+    table = _get_cities_table_for_tour(tour_id)
+
+    try:
+        result = (
+            client.from_(table)
+            .select("*")
+            .eq("clientId", client_id)
+            .eq("id", str(city_id))
+            .execute()
+        )
+    except Exception:
+        return None
+
+    if result and hasattr(result, 'data') and result.data:
+        row = result.data[0] if isinstance(result.data, list) else result.data
+        doc = dict(row)
+        try:
+            doc["id"] = int(doc["id"])
+        except (ValueError, TypeError):
+            pass
+        return doc
+    return None
+
+
+def update_city_for_tour(tour_id: str, city_id: int, data: dict[str, Any]) -> dict[str, Any]:
+    """Update a city record for a specific tour."""
+    client = get_supabase()
+    client_id = get_client_id()
+    table = _get_cities_table_for_tour(tour_id)
+
+    data["updatedAt"] = datetime.now(timezone.utc).isoformat()
+
+    client.from_(table).update(data).eq("clientId", client_id).eq(
+        "id", str(city_id)
+    ).execute()
+
+    return get_city_for_tour(tour_id, city_id)  # type: ignore
+
+
+def compute_journey_for_tour(tour_id: str) -> dict[str, Any]:
+    """Compute journey state for a specific tour."""
+    all_cities = list_cities_for_tour(tour_id)
+
+    def has_coords(c: dict[str, Any]) -> bool:
+        lat = c.get("lat") or 0.0
+        lng = c.get("lng") or 0.0
+        return not (abs(lat) < 0.0001 and abs(lng) < 0.0001)
+
+    cities = [c for c in all_cities if has_coords(c)]
+
+    for c in cities:
+        if c.get("order") is None:
+            c["order"] = 0
+
+    cities.sort(key=lambda c: c["order"])
+
+    current = next(
+        (c for c in cities if c.get("isCurrent")), (cities[0] if cities else None)
+    )
+
+    if current and current.get("order") is not None:
+        path = [c for c in cities if c["order"] < current["order"]]
+    else:
+        path = []
+
+    next_city = None
+    if current and current.get("order") is not None:
+        higher = [
+            c for c in cities if (c.get("order") or 0) > (current.get("order") or 0)
+        ]
+        higher.sort(key=lambda c: c.get("order") or 0)
+        next_city = higher[0] if higher else None
+
+    return {
+        "currentCity": current,
+        "path": path,
+        "nextCity": next_city,
+    }
+
+
 # ------------------ Status ------------------
 
 
@@ -54,70 +256,35 @@ def update_status(payload: dict[str, Any]) -> dict[str, Any]:
 # ------------------ Cities ------------------
 
 
-def list_cities() -> List[dict[str, Any]]:
-    """List all cities ordered by 'order' field."""
-    client = get_supabase()
-    client_id = get_client_id()
+def list_cities(tour_id: Optional[str] = None) -> List[dict[str, Any]]:
+    """List all cities ordered by 'order' field.
 
-    result = (
-        client.from_("speed_cities")
-        .select("*")
-        .eq("clientId", client_id)
-        .order("order")
-        .execute()
-    )
-
-    # Convert id to int for backwards compatibility with existing code
-    docs = []
-    for row in result.data or []:
-        doc = dict(row)
-        try:
-            doc["id"] = int(doc["id"])
-        except (ValueError, TypeError):
-            pass
-        docs.append(doc)
-    return docs
+    If tour_id is provided, lists cities for that tour.
+    If tour_id is None, defaults to America tour for backwards compatibility.
+    """
+    if tour_id is None:
+        tour_id = "america"
+    return list_cities_for_tour(tour_id)
 
 
-def get_city(city_id: int) -> Optional[dict[str, Any]]:
-    """Get a single city by ID."""
-    client = get_supabase()
-    client_id = get_client_id()
+def get_city(city_id: int, tour_id: Optional[str] = None) -> Optional[dict[str, Any]]:
+    """Get a single city by ID.
 
-    try:
-        result = (
-            client.from_("speed_cities")
-            .select("*")
-            .eq("clientId", client_id)
-            .eq("id", str(city_id))
-            .execute()
-        )
-    except Exception:
-        return None
-
-    if result and hasattr(result, 'data') and result.data:
-        row = result.data[0] if isinstance(result.data, list) else result.data
-        doc = dict(row)
-        try:
-            doc["id"] = int(doc["id"])
-        except (ValueError, TypeError):
-            pass
-        return doc
-    return None
+    If tour_id is None, defaults to America tour for backwards compatibility.
+    """
+    if tour_id is None:
+        tour_id = "america"
+    return get_city_for_tour(tour_id, city_id)
 
 
-def update_city(city_id: int, data: dict[str, Any]) -> dict[str, Any]:
-    """Update a city record."""
-    client = get_supabase()
-    client_id = get_client_id()
+def update_city(city_id: int, data: dict[str, Any], tour_id: Optional[str] = None) -> dict[str, Any]:
+    """Update a city record.
 
-    data["updatedAt"] = datetime.now(timezone.utc).isoformat()
-
-    client.from_("speed_cities").update(data).eq("clientId", client_id).eq(
-        "id", str(city_id)
-    ).execute()
-
-    return get_city(city_id)  # type: ignore
+    If tour_id is None, defaults to America tour for backwards compatibility.
+    """
+    if tour_id is None:
+        tour_id = "america"
+    return update_city_for_tour(tour_id, city_id, data)
 
 
 # ------------------ Posts ------------------
@@ -517,44 +684,11 @@ def set_sleep_state(
 # ------------------ Journey helper ------------------
 
 
-def compute_journey() -> dict[str, Any]:
-    """Compute current journey state."""
-    all_cities = list_cities()
+def compute_journey(tour_id: Optional[str] = None) -> dict[str, Any]:
+    """Compute current journey state.
 
-    def has_coords(c: dict[str, Any]) -> bool:
-        lat = c.get("lat") or 0.0
-        lng = c.get("lng") or 0.0
-        return not (abs(lat) < 0.0001 and abs(lng) < 0.0001)
-
-    cities = [c for c in all_cities if has_coords(c)]
-
-    # Ensure order is an int even if missing
-    for c in cities:
-        if c.get("order") is None:
-            c["order"] = 0
-
-    cities.sort(key=lambda c: c["order"])
-
-    current = next(
-        (c for c in cities if c.get("isCurrent")), (cities[0] if cities else None)
-    )
-
-    if current and current.get("order") is not None:
-        path = [c for c in cities if c["order"] < current["order"]]
-    else:
-        path = []
-
-    # Determine next city (by order) if any
-    next_city = None
-    if current and current.get("order") is not None:
-        higher = [
-            c for c in cities if (c.get("order") or 0) > (current.get("order") or 0)
-        ]
-        higher.sort(key=lambda c: c.get("order") or 0)
-        next_city = higher[0] if higher else None
-
-    return {
-        "currentCity": current,
-        "path": path,
-        "nextCity": next_city,
-    }
+    If tour_id is None, defaults to America tour for backwards compatibility.
+    """
+    if tour_id is None:
+        tour_id = "america"
+    return compute_journey_for_tour(tour_id)
