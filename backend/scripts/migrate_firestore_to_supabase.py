@@ -80,7 +80,7 @@ def migrate_status():
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
 
-    supabase.table("speed_status").upsert(record, on_conflict="clientId").execute()
+    supabase.from_("speed_status").upsert(record, on_conflict="clientId").execute()
     print("  Status migrated successfully")
     print()
 
@@ -116,7 +116,7 @@ def migrate_cities():
             "updatedAt": datetime.now(timezone.utc).isoformat(),
         }
 
-        supabase.table("speed_cities").upsert(record, on_conflict="id").execute()
+        supabase.from_("speed_cities").upsert(record, on_conflict="id").execute()
         print(f"    Migrated city: {data.get('city')}, {data.get('state')} (id={doc.id})")
 
     print(f"  Cities migrated successfully")
@@ -169,7 +169,7 @@ def migrate_posts():
 
         # Batch insert (Supabase handles large inserts)
         if records:
-            supabase.table("speed_posts").insert(records).execute()
+            supabase.from_("speed_posts").insert(records).execute()
             total_posts += len(records)
 
     print(f"  Total posts migrated: {total_posts}")
@@ -207,7 +207,7 @@ def migrate_merch():
             "updatedAt": datetime.now(timezone.utc).isoformat(),
         }
 
-        supabase.table("speed_merch").upsert(record, on_conflict="id").execute()
+        supabase.from_("speed_merch").upsert(record, on_conflict="id").execute()
         print(f"    Migrated merch: {data.get('name')} (id={doc.id})")
 
     print("  Merch migrated successfully")
@@ -250,7 +250,7 @@ def migrate_settings():
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
 
-    supabase.table("speed_settings").upsert(record, on_conflict="clientId").execute()
+    supabase.from_("speed_settings").upsert(record, on_conflict="clientId").execute()
     print("  Settings migrated successfully")
     print()
 
@@ -267,7 +267,7 @@ def main():
     # Verify we can connect
     try:
         # Test Supabase connection
-        result = supabase.table("clients").select("id").eq("id", client_id).execute()
+        result = supabase.from_("clients").select("id").eq("id", client_id).execute()
         if not result.data:
             print(f"WARNING: Client '{client_id}' not found in clients table.")
             print("Make sure to run the SQL schema first, including:")

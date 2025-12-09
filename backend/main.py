@@ -21,7 +21,7 @@ from backend.models import (
 )
 # Supabase data layer (replaces Firestore)
 from backend import supabase_repo as repo
-from backend.supabase_client import get_supabase, get_storage_bucket
+from backend.supabase_client import get_supabase, get_storage, get_storage_bucket
 # Keep database import for other endpoints until fully migrated
 from backend.database import create_db_and_tables, get_session
 from backend.auth import get_current_admin
@@ -523,7 +523,7 @@ async def upload_city_locator_icon(
 
     # Upload to Supabase Storage
     try:
-        supabase = get_supabase()
+        storage = get_storage()
         bucket_name = get_storage_bucket()
     except Exception as e:
         raise HTTPException(
@@ -541,7 +541,7 @@ async def upload_city_locator_icon(
 
     try:
         # Upload to Supabase Storage
-        supabase.storage.from_(bucket_name).upload(
+        storage.from_(bucket_name).upload(
             file_path,
             data,
             {"content-type": content_type}
@@ -550,7 +550,7 @@ async def upload_city_locator_icon(
         raise HTTPException(status_code=500, detail=f"Upload failed to bucket '{bucket_name}': {e}")
 
     # Get public URL
-    public_url = supabase.storage.from_(bucket_name).get_public_url(file_path)
+    public_url = storage.from_(bucket_name).get_public_url(file_path)
 
     repo.update_city(city_id, {"locatorIconUrl": public_url, "locatorPng": public_url})
 

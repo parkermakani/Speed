@@ -23,7 +23,7 @@ def get_status() -> Optional[dict[str, Any]]:
 
     try:
         result = (
-            client.table("speed_status")
+            client.from_("speed_status")
             .select("*")
             .eq("clientId", client_id)
             .maybe_single()
@@ -45,7 +45,7 @@ def update_status(payload: dict[str, Any]) -> dict[str, Any]:
     payload["updatedAt"] = now
 
     # Upsert based on clientId
-    client.table("speed_status").upsert(payload, on_conflict="clientId").execute()
+    client.from_("speed_status").upsert(payload, on_conflict="clientId").execute()
 
     return get_status()  # type: ignore
 
@@ -59,7 +59,7 @@ def list_cities() -> List[dict[str, Any]]:
     client_id = get_client_id()
 
     result = (
-        client.table("speed_cities")
+        client.from_("speed_cities")
         .select("*")
         .eq("clientId", client_id)
         .order("order")
@@ -85,7 +85,7 @@ def get_city(city_id: int) -> Optional[dict[str, Any]]:
 
     try:
         result = (
-            client.table("speed_cities")
+            client.from_("speed_cities")
             .select("*")
             .eq("clientId", client_id)
             .eq("id", str(city_id))
@@ -112,7 +112,7 @@ def update_city(city_id: int, data: dict[str, Any]) -> dict[str, Any]:
 
     data["updatedAt"] = datetime.now(timezone.utc).isoformat()
 
-    client.table("speed_cities").update(data).eq("clientId", client_id).eq(
+    client.from_("speed_cities").update(data).eq("clientId", client_id).eq(
         "id", str(city_id)
     ).execute()
 
@@ -228,7 +228,7 @@ def save_city_posts(
         pass
 
     # Delete existing posts for this city
-    client.table("speed_posts").delete().eq("clientId", client_id).eq(
+    client.from_("speed_posts").delete().eq("clientId", client_id).eq(
         "cityId", city_id_str
     ).execute()
     print(f"[Supabase] City {city_id}: deleted existing posts")
@@ -263,7 +263,7 @@ def save_city_posts(
         )
 
     # Batch insert (Supabase handles large inserts)
-    client.table("speed_posts").insert(records).execute()
+    client.from_("speed_posts").insert(records).execute()
     print(f"[Supabase] City {city_id}: wrote {len(records)} posts")
 
 
@@ -273,7 +273,7 @@ def list_city_posts(city_id: int) -> list[dict[str, Any]]:
     client_id = get_client_id()
 
     result = (
-        client.table("speed_posts")
+        client.from_("speed_posts")
         .select("*")
         .eq("clientId", client_id)
         .eq("cityId", str(city_id))
@@ -385,7 +385,7 @@ def get_settings() -> dict[str, Any]:
 
     try:
         result = (
-            client.table("speed_settings")
+            client.from_("speed_settings")
             .select("*")
             .eq("clientId", client_id)
             .maybe_single()
@@ -421,7 +421,7 @@ def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     data["id"] = "globals"
     data["updatedAt"] = datetime.now(timezone.utc).isoformat()
 
-    client.table("speed_settings").upsert(data, on_conflict="clientId").execute()
+    client.from_("speed_settings").upsert(data, on_conflict="clientId").execute()
     return get_settings()
 
 
@@ -433,7 +433,7 @@ def list_merch() -> list[dict[str, Any]]:
     client = get_supabase()
     client_id = get_client_id()
 
-    result = client.table("speed_merch").select("*").eq("clientId", client_id).execute()
+    result = client.from_("speed_merch").select("*").eq("clientId", client_id).execute()
 
     return [dict(row) for row in result.data or []]
 
@@ -447,7 +447,7 @@ def create_merch(data: dict[str, Any]) -> dict[str, Any]:
     data["createdAt"] = datetime.now(timezone.utc).isoformat()
     data["updatedAt"] = datetime.now(timezone.utc).isoformat()
 
-    result = client.table("speed_merch").insert(data).execute()
+    result = client.from_("speed_merch").insert(data).execute()
     return result.data[0] if result.data else data
 
 
@@ -459,7 +459,7 @@ def update_merch(item_id: str, data: dict[str, Any]) -> dict[str, Any]:
     data["updatedAt"] = datetime.now(timezone.utc).isoformat()
 
     result = (
-        client.table("speed_merch")
+        client.from_("speed_merch")
         .update(data)
         .eq("clientId", client_id)
         .eq("id", item_id)

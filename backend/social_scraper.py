@@ -136,20 +136,20 @@ async def cache_media_for_posts(city_id: int, posts: List[dict[str, Any]]) -> Li
     - Limits concurrency to avoid overwhelming upstream CDNs and our egress.
     """
     try:
-        from backend.supabase_client import get_supabase, get_storage_bucket
+        from backend.supabase_client import get_storage, get_storage_bucket
         import httpx as _httpx
     except Exception:
         # If Supabase not configured, return posts unchanged
         return posts
 
-    supabase = None
+    storage = None
     bucket_name = None
     try:
-        supabase = get_supabase()
+        storage = get_storage()
         bucket_name = get_storage_bucket()
     except Exception:
-        supabase = None
-    if not supabase or not bucket_name:
+        storage = None
+    if not storage or not bucket_name:
         logger.info("[MediaCache] Supabase storage unavailable; skipping caching (city_id=%s)", city_id)
         return posts
 
@@ -338,7 +338,7 @@ async def cache_media_for_posts(city_id: int, posts: List[dict[str, Any]]) -> Li
             path = f"cities/{city_id}/posts/{digest}/{key}{ext}"
             try:
                 # Upload to Supabase Storage
-                supabase.storage.from_(bucket_name).upload(
+                storage.from_(bucket_name).upload(
                     path,
                     content,
                     {"content-type": ct}
@@ -353,7 +353,7 @@ async def cache_media_for_posts(city_id: int, posts: List[dict[str, Any]]) -> Li
                     return None, None
             try:
                 # Get public URL from Supabase
-                public_url = supabase.storage.from_(bucket_name).get_public_url(path)
+                public_url = storage.from_(bucket_name).get_public_url(path)
                 logger.info("[MediaCache] stored key=%s path=%s size=%sB", key, path, len(content))
                 return public_url, None
             except Exception:
