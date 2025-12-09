@@ -19,8 +19,9 @@ from backend.models import (
     Status, StatusCreate, StatusResponse,
     City, CityCreate, CityUpdate, CityResponse, JourneyResponse, JourneyCity
 )
-# firestore data layer
-from backend import firestore_repo as repo
+# Supabase data layer (replaces Firestore)
+from backend import supabase_repo as repo
+from backend.supabase_client import get_supabase, get_storage_bucket
 # Keep database import for other endpoints until fully migrated
 from backend.database import create_db_and_tables, get_session
 from backend.auth import get_current_admin
@@ -28,7 +29,6 @@ from backend.auth import get_current_admin
 from backend.scheduler import start_scheduler
 from backend.scheduler import reload_settings
 from backend import scheduler as scheduler_mod
-from backend.firebase import get_bucket
 
 # -------------------- Merch Endpoints --------------------
 
@@ -521,39 +521,36 @@ async def upload_city_locator_icon(
     if not city_doc:
         raise HTTPException(status_code=404, detail="City not found")
 
-    # Obtain Storage bucket, fail with descriptive error if misconfigured
+    # Upload to Supabase Storage
     try:
-        bucket = get_bucket()
+        supabase = get_supabase()
+        bucket_name = get_storage_bucket()
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=(
-                "Firebase Storage not configured. Ensure FIREBASE_SERVICE_ACCOUNT_JSON points to a valid service account JSON "
-                "and FIREBASE_STORAGE_BUCKET is set (or a default bucket is configured in the Firebase project). "
+                "Supabase Storage not configured. Ensure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set. "
                 f"Error: {type(e).__name__}: {e}"
             ),
         )
-    if not bucket:
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "Failed to access Storage bucket. Set FIREBASE_STORAGE_BUCKET or configure a default bucket for the Firebase app."
-            ),
-        )
+
     from datetime import datetime as _dt
     ts = _dt.utcnow().strftime("%Y%m%d%H%M%S")
-    blob_path = f"cities/{city_id}/locator-{ts}.png"
-    blob = bucket.blob(blob_path)
+    file_path = f"cities/{city_id}/locator-{ts}.png"
     data = await file.read()
+
     try:
-        blob.upload_from_string(data, content_type=content_type)
+        # Upload to Supabase Storage
+        supabase.storage.from_(bucket_name).upload(
+            file_path,
+            data,
+            {"content-type": content_type}
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed to bucket '{bucket.name}': {e}")
-    try:
-        blob.make_public()
-        public_url = blob.public_url
-    except Exception:
-        public_url = blob.generate_signed_url(expiration=timedelta(days=365))
+        raise HTTPException(status_code=500, detail=f"Upload failed to bucket '{bucket_name}': {e}")
+
+    # Get public URL
+    public_url = supabase.storage.from_(bucket_name).get_public_url(file_path)
 
     repo.update_city(city_id, {"locatorIconUrl": public_url, "locatorPng": public_url})
 

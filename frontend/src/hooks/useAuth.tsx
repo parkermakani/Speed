@@ -1,13 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import {
-  signInWithEmailAndPassword,
-  onAuthStateChanged,
-  signOut,
-} from "firebase/auth";
-import type { User } from "firebase/auth";
-import { firebaseAuth } from "../services/firebase";
+import { supabase } from "../services/supabase";
+import type { User, Session } from "@supabase/supabase-js";
 
-const TOKEN_KEY = "firebase_id_token";
+const TOKEN_KEY = "supabase_access_token";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
@@ -30,37 +25,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Listen for auth state changes
   useEffect(() => {
-    const unsub = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        const idToken = await firebaseUser.getIdToken();
-        setToken(idToken);
-        localStorage.setItem(TOKEN_KEY, idToken);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setUser(session.user);
+        setToken(session.access_token);
+        localStorage.setItem(TOKEN_KEY, session.access_token);
+      }
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setUser(session.user);
+        setToken(session.access_token);
+        localStorage.setItem(TOKEN_KEY, session.access_token);
       } else {
         setUser(null);
         setToken(null);
         localStorage.removeItem(TOKEN_KEY);
       }
-      setLoading(false);
     });
-    return () => unsub();
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const login = async (email: string, password: string) => {
     try {
-      await signInWithEmailAndPassword(firebaseAuth, email, password);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error("Supabase login failed", error);
+        return { success: false, error: error.message };
+      }
+
       return { success: true };
     } catch (err: any) {
-      console.error("Firebase login failed", err);
+      console.error("Supabase login failed", err);
       return { success: false, error: err.message || "Login failed" };
     }
   };
 
   const logout = async () => {
     try {
-      await signOut(firebaseAuth);
+      await supabase.auth.signOut();
     } finally {
       localStorage.removeItem(TOKEN_KEY);
       setUser(null);

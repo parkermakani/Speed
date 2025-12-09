@@ -126,29 +126,31 @@ def _to_iso_utc(value: Any) -> str | None:
     return dt.isoformat() + "Z"
 
 
-# ------------------ Media caching to Firebase Storage ------------------
+# ------------------ Media caching to Supabase Storage ------------------
 
 async def cache_media_for_posts(city_id: int, posts: List[dict[str, Any]]) -> List[dict[str, Any]]:
-    """Download media/avatar URLs for posts, upload to Firebase Storage, and rewrite URLs.
+    """Download media/avatar URLs for posts, upload to Supabase Storage, and rewrite URLs.
 
-    - Skips URLs that already point to Firebase/Google storage.
+    - Skips URLs that already point to Supabase storage.
     - Best-effort; on any failure, leaves the original URL intact.
     - Limits concurrency to avoid overwhelming upstream CDNs and our egress.
     """
     try:
-        from backend.firebase import get_bucket
+        from backend.supabase_client import get_supabase, get_storage_bucket
         import httpx as _httpx
     except Exception:
-        # If Firebase not configured, return posts unchanged
+        # If Supabase not configured, return posts unchanged
         return posts
 
-    bucket = None
+    supabase = None
+    bucket_name = None
     try:
-        bucket = get_bucket()
+        supabase = get_supabase()
+        bucket_name = get_storage_bucket()
     except Exception:
-        bucket = None
-    if not bucket:
-        logger.info("[MediaCache] bucket unavailable; skipping caching (city_id=%s)", city_id)
+        supabase = None
+    if not supabase or not bucket_name:
+        logger.info("[MediaCache] Supabase storage unavailable; skipping caching (city_id=%s)", city_id)
         return posts
 
     def _already_cached(url: Any) -> bool:
@@ -158,7 +160,10 @@ async def cache_media_for_posts(city_id: int, posts: List[dict[str, Any]]) -> Li
             return False
         s = s.lower()
         return (
-            "firebasestorage.googleapis.com" in s
+            "supabase.co/storage" in s
+            or "supabase.in/storage" in s
+            # Also skip old Firebase URLs if any remain
+            or "firebasestorage.googleapis.com" in s
             or ".appspot.com" in s
             or "storage.googleapis.com" in s
         )
@@ -331,26 +336,29 @@ async def cache_media_for_posts(city_id: int, posts: List[dict[str, Any]]) -> Li
             sha.update((url or "").encode("utf-8", errors="ignore"))
             digest = sha.hexdigest()[:16]
             path = f"cities/{city_id}/posts/{digest}/{key}{ext}"
-            blob = bucket.blob(path)
             try:
-                blob.upload_from_string(content, content_type=ct)
-            except Exception:
-                logger.exception("[MediaCache] upload error key=%s path=%s", key, path)
-                return None, None
+                # Upload to Supabase Storage
+                supabase.storage.from_(bucket_name).upload(
+                    path,
+                    content,
+                    {"content-type": ct}
+                )
+            except Exception as upload_err:
+                # Check if file already exists (duplicate upload)
+                err_str = str(upload_err).lower()
+                if "duplicate" in err_str or "already exists" in err_str:
+                    logger.info("[MediaCache] file already exists key=%s path=%s", key, path)
+                else:
+                    logger.exception("[MediaCache] upload error key=%s path=%s", key, path)
+                    return None, None
             try:
-                blob.make_public()
-                public_url = blob.public_url
+                # Get public URL from Supabase
+                public_url = supabase.storage.from_(bucket_name).get_public_url(path)
                 logger.info("[MediaCache] stored key=%s path=%s size=%sB", key, path, len(content))
                 return public_url, None
             except Exception:
-                try:
-                    from datetime import timedelta as _td
-                    signed = blob.generate_signed_url(expiration=_td(days=365))
-                    logger.info("[MediaCache] stored (signed) key=%s path=%s size=%sB", key, path, len(content))
-                    return signed, None
-                except Exception:
-                    logger.exception("[MediaCache] make_public and sign failed key=%s path=%s", key, path)
-                    return None, None
+                logger.exception("[MediaCache] get_public_url failed key=%s path=%s", key, path)
+                return None, None
         except Exception:
             logger.exception("[MediaCache] exception during fetch/store key=%s", key)
             return None, None
