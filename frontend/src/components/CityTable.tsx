@@ -104,7 +104,7 @@ export const CityTable: React.FC<CityTableProps> = ({ onChange }) => {
         } catch (err: any) {
           const msg = err?.message || "Upload failed";
           alert(
-            `Locator icon upload failed: ${msg}\n\nCheck that you are logged in and the backend has Firebase service account + Storage bucket configured.`
+            `Locator icon upload failed: ${msg}\n\nCheck that you are logged in and the backend has Supabase Storage bucket configured.`
           );
           throw err;
         }
