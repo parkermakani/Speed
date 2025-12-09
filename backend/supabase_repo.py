@@ -26,10 +26,11 @@ def get_status() -> Optional[dict[str, Any]]:
             client.from_("speed_status")
             .select("*")
             .eq("clientId", client_id)
-            .maybe_single()
             .execute()
         )
-        return result.data if result and result.data else None
+        if result and hasattr(result, 'data') and result.data:
+            return result.data[0] if isinstance(result.data, list) else result.data
+        return None
     except Exception:
         return None
 
@@ -89,14 +90,14 @@ def get_city(city_id: int) -> Optional[dict[str, Any]]:
             .select("*")
             .eq("clientId", client_id)
             .eq("id", str(city_id))
-            .maybe_single()
             .execute()
         )
     except Exception:
         return None
 
-    if result and result.data:
-        doc = dict(result.data)
+    if result and hasattr(result, 'data') and result.data:
+        row = result.data[0] if isinstance(result.data, list) else result.data
+        doc = dict(row)
         try:
             doc["id"] = int(doc["id"])
         except (ValueError, TypeError):
@@ -383,18 +384,20 @@ def get_settings() -> dict[str, Any]:
     client = get_supabase()
     client_id = get_client_id()
 
+    data = {}
     try:
         result = (
             client.from_("speed_settings")
             .select("*")
             .eq("clientId", client_id)
-            .maybe_single()
             .execute()
         )
-        data = result.data if result and result.data else {}
+        if result and hasattr(result, 'data') and result.data:
+            # Take first result if multiple (shouldn't happen due to unique constraint)
+            data = result.data[0] if isinstance(result.data, list) else result.data
     except Exception:
         # Table might not exist yet or be empty
-        data = {}
+        pass
 
     # Environment overrides (do not include secrets in response)
     env_overrides: dict[str, Any] = {}
