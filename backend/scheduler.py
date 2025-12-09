@@ -10,7 +10,7 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from backend import firestore_repo as repo
+from backend import supabase_repo as repo
 
 from backend import social_scraper
 
