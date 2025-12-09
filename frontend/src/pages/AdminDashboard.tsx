@@ -25,7 +25,7 @@ export function AdminDashboard({ onStatusUpdate }: AdminDashboardProps) {
   const [isTraveling, setIsTraveling] = useState(false);
   const [selectedTourId, setSelectedTourId] = useState<string>("america");
   const selectedTour: TourConfig = TOURS[selectedTourId] || TOURS.america;
-  const [tourData, setTourData] = useState<Tour | null>(null);
+  const [_tourData, setTourData] = useState<Tour | null>(null);
   const [tourEndDate, setTourEndDate] = useState<string>("");
   const [tourSaving, setTourSaving] = useState(false);
   const [formData, setFormData] = useState<StatusUpdate>({
