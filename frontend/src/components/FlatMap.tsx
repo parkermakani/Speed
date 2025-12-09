@@ -1183,7 +1183,7 @@ function FlatMapInner({
                 fontFamily: "var(--font-display)",
               }}
             >
-              {activeTour.name} Coming Soon
+              Tour Coming Soon
             </span>
           </div>
         </div>
