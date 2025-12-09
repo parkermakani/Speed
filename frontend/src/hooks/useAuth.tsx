@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../services/supabase";
-import type { User, Session } from "@supabase/supabase-js";
+import type { User } from "@supabase/supabase-js";
 
 const TOKEN_KEY = "supabase_access_token";
 
@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const login = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });

@@ -8,16 +8,33 @@ import {
 } from "../services/api";
 import type { MerchItem } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
-import { firebaseStorage } from "../services/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { supabase } from "../services/supabase";
 
 interface AdminMerchProps {}
+
+// Helper to upload file to Supabase Storage
+async function uploadToSupabase(
+  bucket: string,
+  path: string,
+  file: File
+): Promise<string> {
+  const { error } = await supabase.storage.from(bucket).upload(path, file, {
+    contentType: file.type,
+    upsert: true,
+  });
+  if (error) throw error;
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(bucket).getPublicUrl(path);
+  return publicUrl;
+}
 
 export const AdminMerch: React.FC<AdminMerchProps> = () => {
   const { token } = useAuth();
   const [items, setItems] = useState<MerchItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const storageBucket = "speed-media";
   const texturePath = "merch/shirtTextures";
 
   const load = async () => {
@@ -85,21 +102,17 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
     try {
       let imageUrl = "";
       if (form.imageFile) {
-        const storageRef = ref(
-          firebaseStorage,
-          `merch/${Date.now()}_${form.imageFile.name}`
-        );
-        await uploadBytes(storageRef, form.imageFile);
-        imageUrl = await getDownloadURL(storageRef);
+        const path = `merch/${Date.now()}_${form.imageFile.name}`;
+        imageUrl = await uploadToSupabase(storageBucket, path, form.imageFile);
       }
       let shirtTexture = "";
       if (form.textureFile) {
-        const texRef = ref(
-          firebaseStorage,
-          `${texturePath}/${Date.now()}_${form.textureFile.name}`
+        const path = `${texturePath}/${Date.now()}_${form.textureFile.name}`;
+        shirtTexture = await uploadToSupabase(
+          storageBucket,
+          path,
+          form.textureFile
         );
-        await uploadBytes(texRef, form.textureFile);
-        shirtTexture = await getDownloadURL(texRef);
       }
 
       const autoDisableAtIso = form.autoDisableAt
@@ -353,12 +366,12 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file || !token) return;
-                        const imgRef = ref(
-                          firebaseStorage,
-                          `merch/${Date.now()}_${file.name}`
+                        const path = `merch/${Date.now()}_${file.name}`;
+                        const url = await uploadToSupabase(
+                          storageBucket,
+                          path,
+                          file
                         );
-                        await uploadBytes(imgRef, file);
-                        const url = await getDownloadURL(imgRef);
                         await updateMerch(it.id, { imageUrl: url }, token);
                         await load();
                       }}
@@ -381,12 +394,12 @@ export const AdminMerch: React.FC<AdminMerchProps> = () => {
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file || !token) return;
-                        const texRef = ref(
-                          firebaseStorage,
-                          `${texturePath}/${Date.now()}_${file.name}`
+                        const path = `${texturePath}/${Date.now()}_${file.name}`;
+                        const url = await uploadToSupabase(
+                          storageBucket,
+                          path,
+                          file
                         );
-                        await uploadBytes(texRef, file);
-                        const url = await getDownloadURL(texRef);
                         await updateMerch(it.id, { shirtTexture: url }, token);
                         await load();
                       }}
