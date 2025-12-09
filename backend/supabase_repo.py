@@ -21,14 +21,17 @@ def get_status() -> Optional[dict[str, Any]]:
     client = get_supabase()
     client_id = get_client_id()
 
-    result = (
-        client.table("speed_status")
-        .select("*")
-        .eq("clientId", client_id)
-        .maybe_single()
-        .execute()
-    )
-    return result.data if result.data else None
+    try:
+        result = (
+            client.table("speed_status")
+            .select("*")
+            .eq("clientId", client_id)
+            .maybe_single()
+            .execute()
+        )
+        return result.data if result and result.data else None
+    except Exception:
+        return None
 
 
 def update_status(payload: dict[str, Any]) -> dict[str, Any]:
@@ -80,16 +83,19 @@ def get_city(city_id: int) -> Optional[dict[str, Any]]:
     client = get_supabase()
     client_id = get_client_id()
 
-    result = (
-        client.table("speed_cities")
-        .select("*")
-        .eq("clientId", client_id)
-        .eq("id", str(city_id))
-        .maybe_single()
-        .execute()
-    )
+    try:
+        result = (
+            client.table("speed_cities")
+            .select("*")
+            .eq("clientId", client_id)
+            .eq("id", str(city_id))
+            .maybe_single()
+            .execute()
+        )
+    except Exception:
+        return None
 
-    if result.data:
+    if result and result.data:
         doc = dict(result.data)
         try:
             doc["id"] = int(doc["id"])
@@ -377,15 +383,18 @@ def get_settings() -> dict[str, Any]:
     client = get_supabase()
     client_id = get_client_id()
 
-    result = (
-        client.table("speed_settings")
-        .select("*")
-        .eq("clientId", client_id)
-        .maybe_single()
-        .execute()
-    )
-
-    data = result.data or {}
+    try:
+        result = (
+            client.table("speed_settings")
+            .select("*")
+            .eq("clientId", client_id)
+            .maybe_single()
+            .execute()
+        )
+        data = result.data if result and result.data else {}
+    except Exception:
+        # Table might not exist yet or be empty
+        data = {}
 
     # Environment overrides (do not include secrets in response)
     env_overrides: dict[str, Any] = {}
