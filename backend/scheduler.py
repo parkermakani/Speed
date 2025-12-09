@@ -22,8 +22,18 @@ def _current_interval_min() -> int:
     return int(settings.get("socialScrapeIntervalMin", 60))
 
 
+def _is_scheduler_enabled() -> bool:
+    settings = repo.get_settings()
+    return bool(settings.get("schedulerEnabled", True))
+
+
 async def scrape_current_city_job():
-    """Job: scrape posts for the current city and store to Firestore."""
+    """Job: scrape posts for the current city and store to Supabase."""
+    # Check if scheduler is enabled
+    if not _is_scheduler_enabled():
+        logger.info("Scheduler disabled in settings – skipping scrape job")
+        return
+
     cities = repo.list_cities()
     current = next((c for c in cities if c.get("isCurrent")), None)
     if not current:
@@ -186,12 +196,14 @@ def get_status() -> dict:
     curator_api_base = (settings.get("curatorApiBase") or "").strip()
     curator_feed_id = (settings.get("curatorFeedId") or "").strip()
     curator_enabled = bool(curator_json or (curator_api_base and curator_feed_id))
+    scheduler_enabled = _is_scheduler_enabled()
 
     interval = _current_interval_min()
     cities = repo.list_cities()
     current = next((c for c in cities if c.get("isCurrent")), None)
     return {
-        "enabled": _scheduler is not None and interval > 0,
+        "enabled": _scheduler is not None and interval > 0 and scheduler_enabled,
+        "schedulerEnabled": scheduler_enabled,
         "intervalMin": interval,
         "currentCityId": current.get("id") if current else None,
         "currentCity": current.get("city") if current else None,

@@ -362,6 +362,7 @@ def repartition_posts_across_cities(*, cap: Optional[int] = 100) -> dict[str, An
 
 DEFAULT_SETTINGS = {
     "socialScrapeIntervalMin": 5,
+    "schedulerEnabled": True,
     "instagramUsername": "",
     "twitterUsername": "",
     "tiktokUsername": "",
